@@ -23,7 +23,7 @@ function saveDraft(){const rule=readRule();if(!Number.isFinite(rule.percent)||ru
 function renderAlertPreview(){
  const end=currentEnd(),owned=movement(state.cards,state.prices,state.history,end,settings.alerts.period);
  let candidates=owned.rows.filter(r=>Market.qualifies(r,settings.alerts));
- if(profile!=='jacob'&&watchState.lastUpdated){const wend={...watchState,timestamp:watchState.lastUpdated,date:watchState.lastUpdated.slice(0,10)};candidates=candidates.concat(movement(watchState.cards,watchState.prices,watchState.history,wend,settings.alerts.period).rows.filter(r=>Market.qualifies(r,settings.alerts)))}
+ if(watchState.lastUpdated){const wend={...watchState,timestamp:watchState.lastUpdated,date:watchState.lastUpdated.slice(0,10)};candidates=candidates.concat(movement(watchState.cards,watchState.prices,watchState.history,wend,settings.alerts.period).rows.filter(r=>Market.qualifies(r,settings.alerts)))}
  const unique=[...new Map(candidates.map(r=>[Market.key(r),r])).values()];$('alert-events').innerHTML=unique.length?unique.slice(0,12).map(r=>`<p class="${r.dollars>0?'up':'down'}">${esc(r.n)} · ${signedMoney(r.dollars)} / card · ${signedPercent(r.percent)}</p>`).join(''):'<p class="note">No matching alert conditions in the saved data. New tracking may need an earlier matching-source snapshot.</p>';
 }
 function renderWatchlist(){
