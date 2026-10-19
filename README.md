@@ -16,7 +16,7 @@ The workflow runs at **10:17 and 22:17 UTC** daily (6:17 AM/PM New York during d
 - Historical import uses MTGJSON's available 90-day archive, TCGplayer retail USD, and **today's collection quantities**. This is reconstructed value, not a record of what you owned on each day. Added dates are import dates and do not prove acquisition dates.
 - Historical TCGplayer retail and current Scryfall prices may differ. Coverage and source are shown on chart hover. Missing dates are not fabricated; differing coverage or changing holdings can move totals independently of prices.
 - These are indicative prices, without condition/language adjustments, fees, or sale guarantees.
-- Publishing makes the collection, quantities, and purchase basis visible to visitors. Only index.html and data/ are included in the Pages artifact.
+- Publishing makes the collection, quantities, and purchase basis visible to visitors. Only index.html, app.js, styles.css, and data/ are included in the Pages artifact.
 
 ## Update collection
 Replace `ManaBox_Collection.csv` with a fresh ManaBox export and push to main. The workflow rebuilds the public collection automatically. No browser imports or local storage are required. Export history backup downloads the published data.
@@ -34,3 +34,11 @@ Open http://localhost:8765. The historical download is large and can take severa
 The original server.py and START_WINDOWS.bat are retained as legacy local tools. The published dashboard does not need a running server.
 
 If Scryfall returns an unavailable/rate-limit response, current updates fall back to MTGJSON TCGplayer retail. The dashboard displays the source and oldest price date used. The fallback archive normally refreshes daily, so two requests may observe identical prices. Source changes can produce discontinuities.
+
+
+## Explorer and filtered history
+Dropdowns filter by ManaBox binder, printed set, color, type, and per-card unit price. The table supports ascending/descending column sorting and pagination; search applies to table rows. Market-value and card-count graphs use the same dropdown filters. A price threshold is evaluated independently at each snapshot, so membership can change. Color/type matching uses metadata from MTGJSON (both faces combined) and is refreshed by successful Scryfall requests.
+
+Snapshots now save compact per-entry data: [Scryfall ID, finish, quantity, binder, unit price]. Archived October data has been enriched with this detail. Older observations without detail remain on the whole-portfolio graph, but are explicitly omitted from filtered history. The latest observation can use the corresponding latest published per-card prices. Historical set and type matching uses the current printing metadata; unknown metadata is excluded only when that filter needs it.
+
+Hover or tap the graph for an in-chart point, crosshair, date, and exact value. Keyboard left/right arrows inspect points. The chart uses actual elapsed dates and precise currency axis labels.

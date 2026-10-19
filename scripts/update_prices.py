@@ -23,7 +23,7 @@ def save(path,obj):
     tmp=path.with_suffix('.tmp'); tmp.write_text(json.dumps(obj,separators=(',',':')),encoding='utf-8'); tmp.replace(path)
 def collection():
     with (ROOT/'ManaBox_Collection.csv').open(encoding='utf-8-sig',newline='') as f:
-        return [dict(n=r['Name'],id=r['Scryfall ID'],q=int(r['Quantity']),f=r['Foil'].lower(),cost=float(r['Purchase price'] or 0),proxy=r['Proxy'].lower(),set=r['Set code'].upper(),added=r['Added'][:10]) for r in csv.DictReader(f)]
+        return [dict(n=r['Name'],id=r['Scryfall ID'],q=int(r['Quantity']),f=r['Foil'].lower(),cost=float(r['Purchase price'] or 0),proxy=r['Proxy'].lower(),set=r['Set code'].upper(),setName=r['Set name'],binder=r['Binder Name'],binderType=r['Binder Type'],added=r['Added'][:10]) for r in csv.DictReader(f)]
 def valuation(cards,prices,date,source):
     total=basis=covered=quantity=0
     for c in cards:
@@ -31,9 +31,10 @@ def valuation(cards,prices,date,source):
         quantity+=c['q']; key={'foil':'usd_foil','etched':'usd_etched'}.get(c['f'],'usd'); v=prices.get(c['id'],{}).get(key)
         if v is not None:
             total+=float(v)*c['q']; basis+=c['cost']*c['q']; covered+=c['q']
-    return dict(date=date,value=round(total,2),basis=round(basis,2),covered=covered,quantity=quantity,source=source)
+    items=[[c['id'],c['f'],c['q'],c.get('binder',''),prices.get(c['id'],{}).get({'foil':'usd_foil','etched':'usd_etched'}.get(c['f'],'usd'))] for c in cards if c['proxy']!='true']
+    return dict(date=date,value=round(total,2),basis=round(basis,2),covered=covered,quantity=quantity,source=source,items=items)
 def mapping_for(cards):
-    ids={c['id'] for c in cards if c['proxy']!='true'}; mapping={}
+    ids={c['id'] for c in cards if c['proxy']!='true'}; mapping={}; metadata={}
     for code in sorted({c['set'] for c in cards if c['proxy']!='true'}):
         print('Historical set:',code,flush=True)
         try: data=read(f'https://mtgjson.com/api/v5/{code}.json')['data']
@@ -43,8 +44,14 @@ def mapping_for(cards):
             raise
         for card in data['cards']:
             sid=card.get('identifiers',{}).get('scryfallId')
-            if sid in ids: mapping[card['uuid']]=sid
+            if sid in ids:
+                mapping[card['uuid']]=sid
+                previous=metadata.get(sid,{})
+                lines=previous.get('type','').split(' // ') if previous.get('type') else []
+                if card.get('type') and card['type'] not in lines: lines.append(card['type'])
+                metadata[sid]=dict(colors=sorted(set(previous.get('colors',[])+card.get('colors',[]))),type=' // '.join(lines),types=sorted(set(previous.get('types',[])+card.get('types',[]))))
         time.sleep(.12)
+    save(ROOT/'data/metadata.json',metadata)
     return mapping
 
 def main():
@@ -54,6 +61,9 @@ def main():
     if args.backfill:
         import ijson
         mapping=mapping_for(cards)
+        latest_path=ROOT/'data/latest.json'
+        if latest_path.exists():
+            latest=json.loads(latest_path.read_text()); latest['cards']=cards; save(latest_path,latest)
         dates={}
         with request('https://mtgjson.com/api/v5/AllPrices.json.gz') as response:
             with gzip.GzipFile(fileobj=response) as stream:
@@ -64,6 +74,9 @@ def main():
                         for day,value in retail.get(finish,{}).items():
                             if '2026-10-06'<=day<now[:10]: dates.setdefault(day,{}).setdefault(mapping[uid],{})[key]=float(value)
         existing={h['date'] for h in history}
+        for h in history:
+            if h['source'].startswith('MTGJSON') and h['date'] in dates:
+                h['items']=valuation(cards,dates[h['date']],h['date'],h['source'])['items']
         for day,prices in sorted(dates.items()):
             if day not in existing:
                 h=valuation(cards,prices,day,'MTGJSON / TCGplayer retail; current collection reconstructed')
@@ -72,13 +85,23 @@ def main():
         print('Historical days:',len(dates))
         if not dates: raise RuntimeError('No historical prices found; check archive availability and set mappings')
         return
+    if not (ROOT/'data/metadata.json').exists(): mapping_for(cards)
     ids=sorted({c['id'] for c in cards if c['proxy']!='true' and c['id']}); prices={}
     source='Scryfall USD'; price_as_of=now[:10]
     try:
         for i in range(0,len(ids),75):
             data=read('https://api.scryfall.com/cards/collection',{'identifiers':[{'id':sid} for sid in ids[i:i+75]]})
             if data.get('not_found'): raise RuntimeError('Unmatched IDs; refusing partial snapshot: '+str(data['not_found']))
-            for c in data['data']: prices[c['id']]=c['prices']
+            metadata_path=ROOT/'data/metadata.json'
+            metadata=json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
+            for c in data['data']:
+                prices[c['id']]=c['prices']
+                faces=c.get('card_faces',[c])
+                colors=sorted({color for face in faces for color in face.get('colors',c.get('colors',[]))})
+                line=c.get('type_line','')
+                types=[t for t in ['Artifact','Creature','Enchantment','Instant','Kindred','Land','Planeswalker','Sorcery'] if t in line.split(' — ')[0].split() or any(t in face.get('type_line','').split(' — ')[0].split() for face in faces)]
+                metadata[c['id']]=dict(colors=colors,type=line,types=types)
+            save(metadata_path,metadata)
             time.sleep(.15)
     except HTTPError as error:
         if error.code not in (400,403,429,500,502,503,504): raise
@@ -100,5 +123,5 @@ def main():
     history.append(snapshot); history.sort(key=lambda h:h.get('timestamp',h['date']))
     save(ROOT/'data/latest.json',dict(cards=cards,prices=prices,lastUpdated=now,source=source,priceAsOf=price_as_of))
     save(path,history)
-    print('Snapshot saved:',snapshot)
+    print('Snapshot saved:',{k:v for k,v in snapshot.items() if k!='items'})
 if __name__=='__main__': main()
