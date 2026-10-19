@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from urllib.error import HTTPError
 from zoneinfo import ZoneInfo
 from update_prices import ROOT,load_history,save
+from supabase_store import load_profile
 
 def source(h):
     value=h.get('source','')
@@ -79,7 +80,10 @@ def post_discord(webhook,content,image):
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--collection',choices=['main','jacob'],default='main');ap.add_argument('--dry-run',action='store_true');ap.add_argument('--graph-output');ap.add_argument('--send-summary',action='store_true');args=ap.parse_args()
-    directory=ROOT/'data' if args.collection=='main' else ROOT/'data/jacob';settings=json.loads((ROOT/'settings'/f'{args.collection}.json').read_text(encoding='utf-8-sig'));rule=settings['alerts']
+    directory=ROOT/'data' if args.collection=='main' else ROOT/'data/jacob';settings=json.loads((ROOT/'settings'/f'{args.collection}.json').read_text(encoding='utf-8-sig'))
+    remote=load_profile(ROOT,args.collection)
+    if remote is not None:settings=remote['settings']
+    rule=settings['alerts']
     if rule['period'] not in ('day','week','month') or rule['direction'] not in ('both','up','down') or not .1<=float(rule['percent'])<=10000 or not 0<=float(rule['dollars'])<=100000:raise ValueError('Invalid alert rules')
     latest=json.loads((directory/'latest.json').read_text());history=load_history(directory);events=evaluate(latest,history,rule,'collection')
     watch_dir=directory/'wishlist'

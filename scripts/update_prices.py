@@ -1,4 +1,5 @@
 import csv, json, time, argparse, gzip
+from supabase_store import load_profile
 from pathlib import Path
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
@@ -106,6 +107,8 @@ def main():
     datetime.strptime(start_date,'%Y-%m-%d')
     settings_path=ROOT/'settings'/(args.collection+'.json')
     settings=json.loads(settings_path.read_text(encoding='utf-8-sig')) if settings_path.exists() else {'watchlist':[]}
+    remote=load_profile(ROOT,args.collection)
+    if remote is not None:settings=remote['settings']
     import uuid
     watch_cards=[]
     for entry in (settings.get('watchlist',[]) if args.collection!='jacob' else []):
@@ -113,7 +116,7 @@ def main():
         if entry.get('f') not in ('normal','foil','etched'): raise ValueError('Invalid wishlist finish')
         watch_cards.append(dict(n=entry['n'],id=entry['id'],f=entry['f'],q=1,cost=0,proxy='false',binder='Wishlist',set=entry.get('set',''),setName=entry.get('setName','')))
     if len(watch_cards)>200: raise ValueError('Wishlist maximum is 200 printings')
-    cards=collection(); now=datetime.now(timezone.utc).isoformat(); path=DATA_DIR/'history.json'
+    cards=remote['cards'] if remote is not None else collection(); now=datetime.now(timezone.utc).isoformat(); path=DATA_DIR/'history.json'
     history=load_history(DATA_DIR)
     if args.metadata_only:
         mapping_for(cards); return
@@ -178,7 +181,7 @@ def main():
         source='MTGJSON / TCGplayer retail (Scryfall unavailable)'
         price_as_of=min(days) if days else None
     snapshot=valuation(cards,prices,now[:10],source); snapshot['timestamp']=now; snapshot['priceAsOf']=price_as_of
-    if not snapshot['covered']: raise RuntimeError('No prices returned')
+    if cards and not snapshot['covered']: raise RuntimeError('No prices returned')
     # Preserve both scheduled observations rather than overwriting a daily value.
     history.append(snapshot); history.sort(key=lambda h:h.get('timestamp',h['date']))
     save(DATA_DIR/'latest.json',dict(cards=cards,prices=prices,lastUpdated=now,source=source,priceAsOf=price_as_of))

@@ -1,3 +1,7 @@
+# Supabase accounts and private collection data
+
+The app now requires Joe/Jacob sign-in, stores editable holdings and settings in Supabase, and saves future price archives in private Storage. **Complete [supabase/SETUP.md](supabase/SETUP.md) before deploying.** The sections below describe earlier CSV/GitHub storage behavior and historical data sources; Supabase setup takes precedence for current editing, privacy and archive retention. Previously public files remain in this repository/history.
+
 # Mana Portfolio
 
 Static Magic collection dashboard for GitHub Pages. Collection: `ManaBox_Collection.csv`.

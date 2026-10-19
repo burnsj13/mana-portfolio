@@ -31,12 +31,12 @@ function historyItems(snapshot){
  return snapshot?.rowLayout?snapshot.rowLayout.map((row,i)=>[...row,snapshot.unitPrices[i]]):null;
 }
 async function loadHistory(){
- const response=await fetch(`${dataPath}/history-index.json`,{cache:'no-store'});
- if(response.status===404){const legacy=await fetch(`${dataPath}/history.json`,{cache:'no-store'});if(!legacy.ok)throw Error('History unavailable');state.historyArchives=null;return legacy.json()}
+ const response=await window.portfolioFetch(`${dataPath}/history-index.json`,{cache:'no-store'});
+ if(response.status===404){const legacy=await window.portfolioFetch(`${dataPath}/history.json`,{cache:'no-store'});if(!legacy.ok)throw Error('History unavailable');state.historyArchives=null;return legacy.json()}
  if(!response.ok)throw Error('History index unavailable');
  const index=await response.json();
  if(index.version!==1||!index.files.every(name=>/^history\/\d{4}-\d{2}\.json$/.test(name)))throw Error('Invalid history index');
- const archives=await Promise.all(index.files.map(async name=>{const r=await fetch(`${dataPath}/${name}`,{cache:'no-store'});if(!r.ok)throw Error('History month unavailable: '+name);return r.json()}));
+ const archives=await Promise.all(index.files.map(async name=>{const r=await window.portfolioFetch(`${dataPath}/${name}`,{cache:'no-store'});if(!r.ok)throw Error('History month unavailable: '+name);return r.json()}));
  state.historyArchives=archives;
  return archives.flatMap(archive=>archive.snapshots.map(h=>{if(h.layout==null)return h;const rows=archive.layouts[h.layout];if(!rows||rows.length!==h.unitPrices.length)throw Error('Invalid history layout');return {...h,rowLayout:rows}})).sort((a,b)=>(a.timestamp||a.date).localeCompare(b.timestamp||b.date));
 }
@@ -99,10 +99,10 @@ function inspect(index){
 function refreshViews(){state.page=0;draw();renderTable();window.dispatchEvent(new Event('portfolio-ready'))}
 async function load(){
  $('reload').disabled=true;try{
-  const urls=['latest','metadata'];const responses=await Promise.all(urls.map(n=>fetch(`${dataPath}/${n}.json`,{cache:'no-store'})));
+  const urls=['latest','metadata'];const responses=await Promise.all(urls.map(n=>window.portfolioFetch(`${dataPath}/${n}.json`,{cache:'no-store'})));
   if(!responses[0].ok)throw Error('Published price files could not be loaded');
   const latest=await responses[0].json(),history=await loadHistory(),metadata=responses[1].ok?await responses[1].json():{};
-  Object.assign(state,{cards:latest.cards,prices:latest.prices,history,metadata,latest});initializeFilters();overview();refreshViews();$('status').textContent='Shared snapshots loaded. Filter below to explore a subset of the collection.';
+  Object.assign(state,{cards:latest.cards,prices:latest.prices,history,metadata,latest});await window.loadCloudHoldings();initializeFilters();overview();refreshViews();$('status').textContent='Shared snapshots loaded. Filter below to explore a subset of the collection.';
  }catch(e){$('status').textContent='Could not load dashboard: '+e.message}finally{$('reload').disabled=false}
 }
 $('reload').onclick=load;
@@ -154,4 +154,3 @@ $('close-preview').onclick=()=>{const anchor=previewAnchor;hidePreview();if(anch
  document.addEventListener('pointerdown',event=>{if(!event.target.closest('.card-name')&&!$('card-preview').contains(event.target))hidePreview()});
  document.addEventListener('scroll',event=>{if(previewAnchor&&!$('card-preview').contains(event.target)){const rect=previewAnchor.getBoundingClientRect();if(rect.bottom<0||rect.top>window.innerHeight)hidePreview();else positionPreview(previewAnchor)}},true);
  window.addEventListener('resize',hidePreview);
-load();

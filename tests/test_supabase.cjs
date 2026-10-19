@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const context={URL,Date,fetch:()=>{throw Error('Unexpected network')}};vm.createContext(context);vm.runInContext(fs.readFileSync('supabase-client.js','utf8'),context);const api=context.PortfolioCloud;
+const config={url:'https://test.supabase.co',publishableKey:'sb_publishable_test'},id='00000000-0000-0000-0000-000000000001';
+const card={id,n:"Urza's Saga",q:1,cost:0,proxy:'false',f:'normal',binder:'Test'};
+const calls=[],store=new Map();const storage={getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v),removeItem:k=>store.delete(k)};
+let patchAllowed=true;const fetcher=async(url,options)=>{calls.push({url,options});let value=[];if(url.includes('/token?'))value={access_token:'ACCESS',refresh_token:'REFRESH',expires_in:3600,user:{id:'joe'}};else if(url.endsWith('/user'))value={id:'joe'};else if(url.includes('/portfolio_collections?'))value=[{slug:'main',initialized:true,owner_id:'joe'}];else if(url.includes('/portfolio_cards?')&&options.method==='GET')value=url.includes('offset=0')?Array.from({length:500},()=>({entry_id:id,payload:card})):[{entry_id:id,payload:card}];else if(url.includes('/portfolio_settings?'))value=options.method==='PATCH'?(patchAllowed?[{settings:JSON.parse(options.body).settings}]:[]):[{settings:{version:1,alerts:{},watchlist:[]}}];else if(url.includes('/portfolio_cards'))value=patchAllowed?[{entry_id:id,payload:card}]:[];return {ok:true,status:200,json:async()=>value}};
+(async()=>{
+ assert.throws(()=>api.create({...config,url:'http://evil.test'},'main'));
+ assert.throws(()=>api.create({...config,publishableKey:'sb_secret_bad'},'main'));
+ assert.throws(()=>api.validateCard({...card,q:-1}));
+ const client=api.create(config,'main',fetcher,storage);await assert.rejects(client.load(),/Sign in/);assert.equal(calls.length,0);await assert.rejects(client.asset('latest.json'),/Sign in/);
+ await client.signIn('joe@mana-portfolio.invalid','PASSWORD');assert(!JSON.stringify([...store.values()]).includes('PASSWORD'));assert.equal((await client.user()).id,'joe');
+ const data=await client.load();assert.equal(data.cards.length,501);assert.equal(data.cards[0].n,"Urza's Saga");
+ await client.saveCard(card);await client.saveCard({...card,entry_id:id});await client.removeCard(id);await client.saveSettings({version:1,alerts:{},watchlist:[]});
+ for(const call of calls.filter(c=>c.url.includes('/rest/')))assert.equal(call.options.headers.Authorization,'Bearer ACCESS');
+ await client.asset('history/2026-10.json');assert(calls.at(-1).url.endsWith('/main/history/2026-10.json'));
+ await assert.rejects(client.asset('../jacob/latest.json'),/Invalid private asset/);
+ patchAllowed=false;await assert.rejects(client.saveSettings({}),/not saved/);await assert.rejects(client.removeCard(id),/not removed/);
+ patchAllowed=true;const friend=api.create(config,'jacob',fetcher,storage);await friend.saveCard(card);assert(calls.at(-1).options.body.includes('"collection":"jacob"'));
+ await client.signOut();assert.equal(store.size,0);await assert.rejects(client.saveCard(card),/Sign in/);
+ console.log('PASS authenticated reads, pagination, scoped writes, failed-write reporting, private archive paths and sign-out');
+})().catch(e=>{console.error(e);process.exitCode=1});
