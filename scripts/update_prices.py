@@ -102,7 +102,7 @@ def main():
     ap=argparse.ArgumentParser(); ap.add_argument('--backfill',action='store_true'); ap.add_argument('--metadata-only',action='store_true'); ap.add_argument('--collection',choices=['main','jacob'],default='main'); ap.add_argument('--start-date'); args=ap.parse_args()
     if args.collection=='jacob':
         DATA_DIR=ROOT/'data/jacob'; CSV_PATH=ROOT/'Jacob_manabox.csv'
-    start_date=args.start_date or ('2024-10-19' if args.collection=='jacob' else '2026-10-06')
+    start_date=args.start_date or ('2024-10-19' if args.collection=='jacob' else '1900-01-01')
     datetime.strptime(start_date,'%Y-%m-%d')
     cards=collection(); now=datetime.now(timezone.utc).isoformat(); path=DATA_DIR/'history.json'
     history=load_history(DATA_DIR)
@@ -125,8 +125,8 @@ def main():
                             if start_date<=day<now[:10]: dates.setdefault(day,{}).setdefault(mapping[uid],{})[key]=float(value)
         existing={h['date'] for h in history}
         for h in history:
-            if h['source'].startswith('MTGJSON') and h['date'] in dates:
-                h['items']=valuation(cards,dates[h['date']],h['date'],h['source'])['items']
+            if h['source'].startswith('MTGJSON') and not h.get('timestamp') and h['date'] in dates:
+                h.update(valuation(cards,dates[h['date']],h['date'],h['source']))
         for day,prices in sorted(dates.items()):
             if day not in existing:
                 h=valuation(cards,prices,day,'MTGJSON / TCGplayer retail; current collection reconstructed')

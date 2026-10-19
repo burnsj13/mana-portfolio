@@ -5,7 +5,7 @@ Static Magic collection dashboard for GitHub Pages. Collection: `ManaBox_Collect
 ## Publish
 1. Push this repository to `burnsj13/mana-portfolio` on `main`.
 2. GitHub repository Settings → Pages → Build and deployment → Source → **GitHub Actions**.
-3. Actions → **Update prices and deploy** → Run workflow. Check **backfill** for the first run to import available prices from October 6, 2026.
+3. Actions → **Update prices and deploy** → Run workflow. Check **backfill** for the first run to import all available archived prices.
 4. Open https://burnsj13.github.io/mana-portfolio/ after the deploy job succeeds.
 
 The workflow runs at **10:17 and 22:17 UTC** daily (6:17 AM/PM New York during daylight saving; 5:17 AM/PM in standard time). GitHub schedules can be delayed and inactive public repositories may have schedules disabled after 60 days. The default branch must be main. The Actions token needs Contents write permission; repository/organization policies or branch protection may restrict it.
@@ -29,7 +29,7 @@ pip install ijson
 python scripts/update_prices.py --backfill
 python -m http.server 8765
 ```
-Open http://localhost:8765. The historical download is large and can take several minutes. Import it while October 6 remains inside the archive's retention window. Historical days are imported only when absent; twice-daily observations are preserved. Failed API requests fail the workflow before committing a current snapshot.
+Open http://localhost:8765. The historical download is large and can take several minutes. Import it while October 6 remains inside the archive's retention window. Missing historical days are imported; reconstructed historical observations are refreshed consistently; twice-daily observations are preserved. Failed API requests fail the workflow before committing a current snapshot.
 
 The original server.py and START_WINDOWS.bat are retained as legacy local tools. The published dashboard does not need a running server.
 
@@ -66,3 +66,6 @@ The provider’s rolling archive limits initial backfill, not retention of obser
 Monthly files store shared holdings layouts once and each observation’s prices separately. At the initial collection sizes, two daily observations for both pages project to approximately 25 MB of additional published history a year (before compression). Growth depends on holdings, prices, and frequency; Git revision history also consumes repository space. The browser shares layouts in memory and expands card rows only when a filtered graph needs them. Historical backups now include `historyArchives` with compact monthly documents, plus the selected collection’s latest prices and metadata. Old aggregate-only observations remain intact.
 
 The old monolithic history files were losslessly migrated into monthly archives. `load_history()` / `save_history()` in the updater decode and encode this format. The UI can still read a legacy history.json when no monthly index exists, to support migration.
+
+
+The original collection’s backfill now imports every date available in the archive rather than stopping at October 6. Its first-snapshot percentage baseline follows the earliest retained date automatically. This extends the reconstructed value history of current holdings; it does not establish ownership on earlier dates. Running `python scripts/update_prices.py --backfill` uses this earliest-available behavior by default.
