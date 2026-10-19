@@ -25,17 +25,20 @@ class AlertTests(unittest.TestCase):
     def test_discord_collection_links(self):
         self.assertEqual(alerts.collection_link('main'),'https://burnsj13.github.io/mana-portfolio/')
         self.assertEqual(alerts.collection_link('jacob'),'https://burnsj13.github.io/mana-portfolio/jacob.html')
-    def test_previous_check_uses_same_day_and_current_quantities(self):
-        previous=dict(date='2026-10-19',timestamp='2026-10-19T10:00:00Z',source='Scryfall USD',items=[['a','normal',99,'',2.5],['b','foil',1,'',5]])
+    def test_24h_change_ignores_recent_checks_and_uses_current_quantities(self):
+        previous=dict(date='2026-10-18',timestamp='2026-10-18T22:00:00Z',source='Scryfall USD',items=[['a','normal',99,'',2.5],['b','foil',1,'',5]])
         latest={**self.latest,'cards':[self.card,dict(self.card,id='b',n='Loser',f='foil',q=1),dict(self.card,id='new',n='New',q=10)],'prices':{'a':{'usd':3},'b':{'usd_foil':4.5},'new':{'usd':100}}}
         current=dict(previous,timestamp=latest['lastUpdated'])
-        text=alerts.check_summary(latest,self.history+[previous,current])
+        recent=dict(previous,date='2026-10-19',timestamp='2026-10-19T10:00:00Z',items=[['a','normal',99,'',100]])
+        text=alerts.check_summary(latest,self.history+[previous,recent,current])
         self.assertIn('+0.50 USD (+5.00%)',text)
         self.assertIn('Biggest gainer: Card (normal) — +1.00 USD holdings',text)
         self.assertIn('Biggest loser: Loser (foil) — -0.50 USD holdings',text)
-        self.assertIn('Oct 19, 06:00 AM EDT',text)
-    def test_previous_check_handles_missing_zero_and_source_switch(self):
-        self.assertIn('first saved check',alerts.check_summary(self.latest,[]))
+        self.assertIn('Oct 18, 06:00 PM EDT',text)
+        self.assertIn('Last 24h change',text)
+        self.assertIn('no saved snapshot',alerts.check_summary(latest,[recent,current]))
+    def test_24h_change_handles_missing_zero_and_source_switch(self):
+        self.assertIn('no saved snapshot',alerts.check_summary(self.latest,[]))
         self.history[0]['source']='MTGJSON retail'
         self.assertIn('sources differ',alerts.check_summary(self.latest,self.history))
         self.history[0]['source']='Scryfall USD';self.history[0]['items'][0][4]=0

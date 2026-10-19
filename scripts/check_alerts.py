@@ -42,13 +42,14 @@ def evaluate(latest,history,rule,scope):
     return events
 
 def check_summary(latest,history):
-    """Compare with the immediately preceding observation, including same-day runs."""
+    """Compare with the latest saved observation at or before the 24-hour cutoff."""
     end=dict(date=latest['lastUpdated'][:10],timestamp=latest['lastUpdated'],source=latest['source'])
-    earlier=[h for h in history if timestamp(h)<timestamp(end)]
-    if not earlier:return 'Previous-check change: unavailable (first saved check).\n'
+    cutoff=timestamp(end)-timedelta(hours=24)
+    earlier=[h for h in history if timestamp(h)<=cutoff]
+    if not earlier:return 'Last 24h change: unavailable (no saved snapshot at least 24 hours earlier).\n'
     before=max(earlier,key=timestamp)
     label=timestamp(before).astimezone(ZoneInfo('America/New_York')).strftime('%b %d, %I:%M %p %Z')
-    if source(before)!=source(end):return f'Previous check: {label}. Price sources differ; change and movers unavailable.\n'
+    if source(before)!=source(end):return f'Last 24h baseline: {label}. Price sources differ; change and movers unavailable.\n'
     old={(i[0],i[1]):float(i[4]) for i in before.get('items',[]) if i[4] is not None}
     grouped={}
     for c in latest['cards']:
@@ -62,9 +63,9 @@ def check_summary(latest,history):
         if raw is None or key not in old:continue
         dollars=float(raw)-old[key];holding=dollars*c['q'];prior_total+=old[key]*c['q'];delta+=holding;covered+=c['q']
         moves.append(dict(c,holding=holding,dollars=dollars,percent=dollars/old[key]*100 if old[key]>0 else None))
-    if not moves:return f'Previous check: {label}. No matching priced cards to compare.\n'
+    if not moves:return f'Last 24h baseline: {label}. No matching priced cards to compare.\n'
     percent=f'{delta/prior_total*100:+.2f}%' if prior_total>0 else 'percentage unavailable'
-    text=f'Since previous check ({label}): **{delta:+,.2f} USD ({percent})**\nMatched price change on {covered:,} current copies; excludes added/removed and unpriced cards.\n'
+    text=f'Last 24h change: **{delta:+,.2f} USD ({percent})**\nSaved baseline: {label} (at or before the 24h cutoff). Matched price change on {covered:,} current copies; excludes added/removed and unpriced cards.\n'
     for title,rows,reverse in [('Biggest gainer',[m for m in moves if m['holding']>0],True),('Biggest loser',[m for m in moves if m['holding']<0],False)]:
         if not rows:text+=title+': none.\n';continue
         c=sorted(rows,key=lambda m:m['holding'],reverse=reverse)[0]

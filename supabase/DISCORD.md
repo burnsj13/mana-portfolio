@@ -6,8 +6,11 @@ The page's collection button sends that collection's graph. No GitHub token is
 needed, and the browser never receives a Discord webhook or server secret.
 
 The button sends the latest saved graph immediately. It does not collect new
-prices. The message includes the total, previous-check matched price change in
+prices. The message includes the total, last-24-hour matched price change in
 dollars/percent, biggest gainer/loser, saved-check time and collection-page link.
+The baseline is the most recent saved snapshot at or before 24 hours prior to the
+latest price check. Its actual time is shown; no values are interpolated. If none
+exists, the 24h comparison is unavailable. Gainers and losers use that same window.
 
 ## One-time activation
 
