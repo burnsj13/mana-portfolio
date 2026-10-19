@@ -15,6 +15,9 @@ def source(h):
 
 def timestamp(h):return datetime.fromisoformat(h.get('timestamp',h['date']+'T12:00:00+00:00').replace('Z','+00:00'))
 def day(h):return timestamp(h).astimezone(ZoneInfo('America/New_York')).date().isoformat() if h.get('timestamp') else h['date']
+
+def collection_link(profile):
+    return 'https://burnsj13.github.io/mana-portfolio/'+('jacob.html' if profile=='jacob' else '')
 def baseline(history,end,period):
     candidates=[h for h in history if day(h)<day(end)] if period=='day' else [h for h in history if timestamp(h)<=timestamp(end)-timedelta(days=7 if period=='week' else 30)]
     return candidates[-1] if candidates else None
@@ -134,6 +137,7 @@ def main():
         if args.graph_output:Path(args.graph_output).write_bytes(image)
     if should_send and webhook and not args.dry_run:
         last=history[-1];content=f"**{title}** — ${last['value']:,.2f} · {last['covered']:,}/{last['quantity']:,} cards priced\nPeriod: {rule['period']} · {len(new)} new threshold event(s)\n"
+        content+=f'Open collection: {collection_link(args.collection)}\n'
         content+=check_summary(latest,history)
         if first_delivery:content+='Discord connected: initial portfolio graph summary.\n'
         shown=0

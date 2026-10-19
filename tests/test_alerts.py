@@ -22,6 +22,9 @@ class AlertTests(unittest.TestCase):
         self.assertFalse(alerts.evaluate(self.latest,self.history,self.rule,'collection'))
     def test_new_york_date_boundary(self):
         self.assertEqual(alerts.day(dict(date='2026-10-19',timestamp='2026-10-19T01:00:00Z')),'2026-10-18')
+    def test_discord_collection_links(self):
+        self.assertEqual(alerts.collection_link('main'),'https://burnsj13.github.io/mana-portfolio/')
+        self.assertEqual(alerts.collection_link('jacob'),'https://burnsj13.github.io/mana-portfolio/jacob.html')
     def test_previous_check_uses_same_day_and_current_quantities(self):
         previous=dict(date='2026-10-19',timestamp='2026-10-19T10:00:00Z',source='Scryfall USD',items=[['a','normal',99,'',2.5],['b','foil',1,'',5]])
         latest={**self.latest,'cards':[self.card,dict(self.card,id='b',n='Loser',f='foil',q=1),dict(self.card,id='new',n='New',q=10)],'prices':{'a':{'usd':3},'b':{'usd_foil':4.5},'new':{'usd':100}}}
@@ -65,4 +68,5 @@ class AlertTests(unittest.TestCase):
             with patch.object(alerts,'ROOT',root),patch.object(sys,'argv',['check_alerts.py']),patch.dict(os.environ,{'DISCORD_WEBHOOK_MAIN':'https://discord.com/api/webhooks/123/mock'}),patch.object(alerts,'graph_png',return_value=b'PNG'),patch.object(alerts,'post_discord') as post:
                 alerts.main();alerts.main();self.assertEqual(post.call_count,1)
                 self.assertIn('Discord connected',post.call_args.args[1])
+                self.assertIn('Open collection: '+alerts.collection_link('main'),post.call_args.args[1])
 if __name__=='__main__':unittest.main()
