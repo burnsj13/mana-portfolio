@@ -1,3 +1,10 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');const context={Intl,Date};vm.createContext(context);vm.runInContext(fs.readFileSync('market.js','utf8'),context);const m=context.Market;
 const h=[{date:'2026-10-12',source:'Scryfall USD',items:[['a','normal',1,'',2]]},{date:'2026-10-18',source:'Scryfall USD',items:[['a','normal',1,'',3]]}];const end={date:'2026-10-19',timestamp:'2026-10-19T22:00:00Z',source:'Scryfall USD'};const cards=[{id:'a',n:'A',f:'normal',q:2,proxy:'false'},{id:'a',n:'A',f:'normal',q:3,proxy:'false'},{id:'b',n:'B',f:'foil',q:1,proxy:'true'}];
 const r=m.rows(cards,{a:{usd:4}},h,end,'week');assert.equal(r.rows[0].q,5);assert.equal(r.rows[0].percent,100);assert.equal(r.rows[0].holdingDollars,10);assert.equal(m.baseline(h,end,'day').date,'2026-10-18');assert.equal(m.change(4,0).percent,null);assert(m.qualifies(r.rows[0],{enabled:true,percent:10,dollars:1,direction:'up'}));r.rows[0].compatible=false;assert(!m.qualifies(r.rows[0],{enabled:true,percent:10,dollars:1,direction:'up'}));console.log('PASS market periods, grouped holdings, zero baselines, and source-safe alert thresholds');
+const card={id:'a',f:'normal',price:4};
+const weekSpark=m.spark(h,card,end,'week');assert.match(weekSpark,/\$2\.00 to \$4\.00/);assert.match(weekSpark,/y1="27"/);assert.match(weekSpark,/y2="3"/);
+assert.match(m.spark(h,card,end,'day'),/\$3\.00 to \$4\.00/);
+assert.match(m.spark(h,card,{...end,source:'MTGJSON retail'},'day'),/stroke-dasharray="3 2"/);
+assert.match(m.spark(h,{...card,price:3},end,'day'),/y1="15".*y2="15"/);
+assert.equal(m.spark([],card,end,'day'),'');
+console.log('PASS mini charts match comparison endpoints, distinguish source switches, and preserve unchanged prices');

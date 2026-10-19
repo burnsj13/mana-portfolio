@@ -24,6 +24,17 @@ var Market=(()=>{
   return {rows:result,base};
  }
  function qualifies(row,rule){return rule.enabled&&row.compatible&&row.percent!=null&&Math.abs(row.percent)>=rule.percent&&Math.abs(row.dollars)>=rule.dollars&&(rule.direction==='both'||(rule.direction==='up'?row.dollars>0:row.dollars<0))&&row.dollars!==0}
- function spark(history,c,end){const values=history.filter(h=>source(h)===source(end)).slice(-30).map(h=>priceMap(h).get(key(c))).filter(v=>v!=null);if(values.length<2)return '<span class="note">Collecting trend</span>';const min=Math.min(...values);if(Math.max(...values)===min)return '<span class="note" title="Identical prices across the recent snapshots from this source">No observed change</span>';const span=Math.max(...values)-min||1;const points=values.map((v,i)=>`${i*100/(values.length-1)},${27-(v-min)/span*24}`).join(' ');return `<svg class="spark" viewBox="0 0 100 30" role="img" aria-label="Recent same-source price observations"><polyline points="${points}" fill="none" stroke="${values.at(-1)>=values[0]?'#61e4b4':'#ff8794'}" stroke-width="2"/></svg>`}
+ function spark(history,c,end,period='day'){
+  const base=baseline(history,end,period);if(!base||c.price==null)return '';
+  const first=priceMap(base).get(key(c));if(first==null)return '';
+  const observations=[{time:stamp(base),price:first,provider:source(base)}];
+  for(const h of history){const time=stamp(h),price=priceMap(h).get(key(c));if(time>stamp(base)&&time<stamp(end)&&price!=null)observations.push({time,price,provider:source(h)})}
+  observations.push({time:stamp(end),price:c.price,provider:source(end)});
+  const values=observations.map(p=>p.price),low=Math.min(...values),high=Math.max(...values),span=high-low;
+  const duration=stamp(end)-stamp(base)||1;
+  const x=p=>2+(p.time-stamp(base))/duration*96,y=p=>span?27-(p.price-low)/span*24:15;
+  const segments=observations.slice(1).map((p,i)=>{const previous=observations[i],mixed=p.provider!==previous.provider;return `<line x1="${x(previous)}" y1="${y(previous)}" x2="${x(p)}" y2="${y(p)}" stroke="${mixed?'#e8bd72':p.price>=previous.price?'#61e4b4':'#ff8794'}" stroke-width="2"${mixed?' stroke-dasharray="3 2"':''}/>`}).join('');
+  return `<svg class="spark" viewBox="0 0 100 30" role="img" aria-label="Price observations for the selected comparison period"><title>${base.date} to ${end.date}: $${first.toFixed(2)} to $${c.price.toFixed(2)}. Dashed amber segments mark a price-source change, not verified market movement.</title>${segments}</svg>`;
+ }
  return {source,items,key,priceMap,stamp,day,baseline,change,rows,qualifies,spark};
 })();
