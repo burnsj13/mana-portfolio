@@ -33,6 +33,7 @@ jobs:
         run: |
           python -m unittest discover -s tests
           node tests/test_market.cjs
+          node tests/test_github_settings.cjs
       - name: Historical import
         if: inputs.backfill
         run: |
@@ -67,7 +68,7 @@ jobs:
       - name: Prepare public site
         run: |
           mkdir _site
-          cp index.html jacob.html app.js market.js insights.js styles.css _site/
+          cp index.html jacob.html app.js market.js insights.js github-settings.js github-settings-ui.js styles.css _site/
           cp -r settings _site/
           cp -r data _site/
       - uses: actions/configure-pages@v5

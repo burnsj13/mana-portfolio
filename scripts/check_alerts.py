@@ -88,14 +88,18 @@ def main():
     state_path=directory/'alert-state.json';previous=json.loads(state_path.read_text()) if state_path.exists() else {};fingerprint=hashlib.sha256(json.dumps(rule,sort_keys=True).encode()).hexdigest()[:12]
     def event_key(e):return '|'.join([fingerprint,e['id'],e['f'],rule['period'],e['baseline'],e['direction']])
     active={event_key(e) for e in events};new=[e for e in events if event_key(e) not in previous.get('active',[])]
-    now=datetime.now(timezone.utc);today=now.astimezone(ZoneInfo('America/New_York')).date().isoformat();summary=args.send_summary or (rule.get('enabled',False) and rule.get('dailySummary',False) and previous.get('summaryDate')!=today)
-    webhook=os.environ.get('DISCORD_WEBHOOK_'+args.collection.upper(),'');should_send=bool(new or summary);delivered=False
+    now=datetime.now(timezone.utc);today=now.astimezone(ZoneInfo('America/New_York')).date().isoformat()
+    webhook=os.environ.get('DISCORD_WEBHOOK_'+args.collection.upper(),'')
+    first_delivery=bool(webhook) and rule.get('enabled',False) and not previous.get('confirmed',False)
+    summary=args.send_summary or first_delivery or (rule.get('enabled',False) and rule.get('dailySummary',False) and previous.get('summaryDate')!=today)
+    should_send=bool(new or summary);delivered=False
     title='Jacob’s Collection' if args.collection=='jacob' else 'Mana Portfolio'
     if should_send or args.graph_output:
         image=graph_png(history,latest,title)
         if args.graph_output:Path(args.graph_output).write_bytes(image)
     if should_send and webhook and not args.dry_run:
         last=history[-1];content=f"**{title}** — ${last['value']:,.2f} · {last['covered']:,}/{last['quantity']:,} cards priced\nPeriod: {rule['period']} · {len(new)} new threshold event(s)\n"
+        if first_delivery:content+='Discord connected: initial portfolio graph summary.\n'
         for e in sorted(new,key=lambda e:abs(e['percent']),reverse=True)[:12]:content+=f"{e['n'][:85]} ({e['f']}, {e['scope']}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%\n"
         if len(new)>12:content+=f'Plus {len(new)-12} additional events; view the website for details.\n'
         content+='Wishlist entries are excluded from the portfolio total. Prices are indicative.'
@@ -106,8 +110,9 @@ def main():
             raise
     # Never suppress unsent events. Existing active deliveries remain remembered until rearmed.
     remembered=active if delivered else active.intersection(previous.get('active',[]))
-    if not args.dry_run:save(state_path,dict(active=sorted(remembered),summaryDate=today if delivered and summary else previous.get('summaryDate')))
-    save(directory/'alert-status.json',dict(checkedAt=now.isoformat(),deliveryConfigured=bool(webhook),dryRun=args.dry_run,delivered=delivered,eventCount=len(events),newEventCount=len(new)))
+    if not args.dry_run:save(state_path,dict(active=sorted(remembered),summaryDate=today if delivered and summary else previous.get('summaryDate'),confirmed=previous.get('confirmed',False) or delivered))
+    reason='message delivered' if delivered else 'dry run' if args.dry_run else 'webhook not configured' if not webhook else 'alerts disabled' if not rule.get('enabled') else 'no qualifying alerts and daily summary not due'
+    save(directory/'alert-status.json',dict(checkedAt=now.isoformat(),deliveryConfigured=bool(webhook),dryRun=args.dry_run,delivered=delivered,eventCount=len(events),newEventCount=len(new),reason=reason))
     print(f'{args.collection}: {len(events)} matching conditions; {len(new)} new; Discord '+('delivered' if delivered else 'not sent (dry run, no event, or webhook not configured)'))
 if __name__=='__main__':
     try:main()

@@ -39,4 +39,12 @@ class AlertTests(unittest.TestCase):
             self.assertIn('wait=true',request.full_url)
             self.assertIn(b'files[0]',request.data);self.assertIn(b'PNGDATA',request.data)
             self.assertIn(b'"allowed_mentions": {"parse": []}',request.data)
+    def test_initial_connection_sends_summary_without_threshold_event(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);self.latest['prices']['a']['usd']='2'
+            save(root/'settings/main.json',dict(version=1,alerts=self.rule,watchlist=[]));save(root/'data/latest.json',self.latest)
+            save_history(root/'data',self.history)
+            with patch.object(alerts,'ROOT',root),patch.object(sys,'argv',['check_alerts.py']),patch.dict(os.environ,{'DISCORD_WEBHOOK_MAIN':'https://discord.com/api/webhooks/123/mock'}),patch.object(alerts,'graph_png',return_value=b'PNG'),patch.object(alerts,'post_discord') as post:
+                alerts.main();alerts.main();self.assertEqual(post.call_count,1)
+                self.assertIn('Discord connected',post.call_args.args[1])
 if __name__=='__main__':unittest.main()
