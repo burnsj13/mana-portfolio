@@ -15,5 +15,14 @@ const api=context.GitHubSettings;
  sha='changed';await assert.rejects(writer.save(settings),/changed since connection/);
  writer.disconnect();const count=calls.length;await assert.rejects(writer.save(settings),/Connect/);assert.equal(calls.length,count);
  const expired=api.create('main',async()=>({ok:false,status:401}));await assert.rejects(expired.connect('fake'),/invalid/);
+ let dispatch;
+ const testWriter=api.create('jacob',async(url,options)=>{
+  if(options.method==='POST'){dispatch={url,body:JSON.parse(options.body)};return {ok:true,status:204,json:()=>{throw Error('204 must not parse JSON')}}}
+  return {ok:true,status:200,json:async()=>({sha:'one',content:api.encode(settings)})};
+ });
+ await testWriter.connect('fake-token-for-tests-only');await testWriter.sendDiscordTest();
+ assert(dispatch.url.endsWith('/actions/workflows/prices.yml/dispatches'));
+ assert.equal(dispatch.body.inputs.discord_collection,'jacob');assert.equal(dispatch.body.inputs.discord_snapshot,true);
+ assert.equal(dispatch.body.ref,'main');
  console.log('PASS GitHub save: Unicode, profile isolation, authenticated file update, conflict detection, disconnect, no token in content');
 })().catch(error=>{console.error(error);process.exitCode=1});

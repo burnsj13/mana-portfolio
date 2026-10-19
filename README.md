@@ -93,3 +93,10 @@ The **Save directly to GitHub** button updates the selected collection’s track
 
 ### Discord connection confirmation
 The first enabled check with a configured webhook now sends one initial graph summary even if no card meets an alert threshold. Successful delivery records `confirmed` in that profile’s alert state, so subsequent ordinary pushes stay quiet unless an alert, daily summary, or manual graph request is due. A failed attempt is not marked confirmed and is retried later. Public alert status includes the reason when no message is sent. This changes the prior behavior where a normal push with zero events and daily summaries off produced no Discord message despite valid secrets.
+
+### Profile-specific controls and trend labels
+Jacob’s page no longer offers wishlist/watchlist controls, and the collector and alert checker ignore wishlist entries for Jacob. His collection trends, Discord alert settings, and **Send one-time Discord graph** control remain. The original collection retains the wishlist. Wishlist changes save to the profile’s settings file, are collected by the workflow, and reappear on subsequent page loads; uncollected draft entries are labeled accordingly.
+
+Flat mini charts are labeled **No observed change**. These charts use recent observations from the current price source, whereas gain/loss amounts may compare against a different historical source, explicitly labeled as a mixed-source estimate.
+
+The one-time Discord button dispatches the existing workflow for only the selected profile’s manual summary. Its GitHub token additionally needs **Actions: Read and write** on this repository. **Contents: Read and write** remains necessary for saving wishlist/alert settings. The workflow still performs normal price checks for both profiles; normal alerts or due daily summaries may independently run for the other profile. The test is queued and can take several minutes; acceptance of a workflow request is not confirmation of Discord delivery.

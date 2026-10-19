@@ -83,7 +83,7 @@ def main():
     if rule['period'] not in ('day','week','month') or rule['direction'] not in ('both','up','down') or not .1<=float(rule['percent'])<=10000 or not 0<=float(rule['dollars'])<=100000:raise ValueError('Invalid alert rules')
     latest=json.loads((directory/'latest.json').read_text());history=load_history(directory);events=evaluate(latest,history,rule,'collection')
     watch_dir=directory/'wishlist'
-    if (watch_dir/'latest.json').exists():events+=evaluate(json.loads((watch_dir/'latest.json').read_text()),load_history(watch_dir),rule,'wishlist')
+    if args.collection!='jacob' and (watch_dir/'latest.json').exists():events+=evaluate(json.loads((watch_dir/'latest.json').read_text()),load_history(watch_dir),rule,'wishlist')
     events=list({(e['id'],e['f']):e for e in reversed(events)}.values())
     state_path=directory/'alert-state.json';previous=json.loads(state_path.read_text()) if state_path.exists() else {};fingerprint=hashlib.sha256(json.dumps(rule,sort_keys=True).encode()).hexdigest()[:12]
     def event_key(e):return '|'.join([fingerprint,e['id'],e['f'],rule['period'],e['baseline'],e['direction']])

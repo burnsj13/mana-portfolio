@@ -10,6 +10,11 @@ on:
         description: Send graph summaries to configured Discord channels now
         type: boolean
         default: false
+      discord_collection:
+        description: Collection to include in the manual Discord graph test
+        type: choice
+        options: [both, main, jacob]
+        default: both
       backfill:
         description: Import available archived history for both separate collections
         type: boolean
@@ -50,12 +55,12 @@ jobs:
         continue-on-error: true
         env:
           DISCORD_WEBHOOK_MAIN: ${{ secrets.DISCORD_WEBHOOK_MAIN }}
-        run: python scripts/check_alerts.py ${{ inputs.discord_snapshot && '--send-summary' || '' }}
+        run: python scripts/check_alerts.py ${{ inputs.discord_snapshot && (inputs.discord_collection == 'both' || inputs.discord_collection == 'main') && '--send-summary' || '' }}
       - name: Jacob Discord alerts and graph
         continue-on-error: true
         env:
           DISCORD_WEBHOOK_JACOB: ${{ secrets.DISCORD_WEBHOOK_JACOB }}
-        run: python scripts/check_alerts.py --collection jacob ${{ inputs.discord_snapshot && '--send-summary' || '' }}
+        run: python scripts/check_alerts.py --collection jacob ${{ inputs.discord_snapshot && (inputs.discord_collection == 'both' || inputs.discord_collection == 'jacob') && '--send-summary' || '' }}
       - name: Commit observations
         run: |
           git config user.name 'github-actions[bot]'

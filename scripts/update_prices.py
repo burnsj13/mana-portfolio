@@ -108,7 +108,7 @@ def main():
     settings=json.loads(settings_path.read_text(encoding='utf-8-sig')) if settings_path.exists() else {'watchlist':[]}
     import uuid
     watch_cards=[]
-    for entry in settings.get('watchlist',[]):
+    for entry in (settings.get('watchlist',[]) if args.collection!='jacob' else []):
         uuid.UUID(entry['id'])
         if entry.get('f') not in ('normal','foil','etched'): raise ValueError('Invalid wishlist finish')
         watch_cards.append(dict(n=entry['n'],id=entry['id'],f=entry['f'],q=1,cost=0,proxy='false',binder='Wishlist',set=entry.get('set',''),setName=entry.get('setName','')))
