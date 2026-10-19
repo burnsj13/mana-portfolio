@@ -11,6 +11,9 @@ dollars/percent, biggest gainer/loser, saved-check time and collection-page link
 The baseline is the most recent saved snapshot at or before 24 hours prior to the
 latest price check. Its actual time is shown; no values are interpolated. If none
 exists, the 24h comparison is unavailable. Gainers and losers use that same window.
+Comparisons across price providers are shown as mixed-source estimates, including
+the provider names. Those estimates also apply to the displayed movers; they never
+trigger threshold alerts.
 
 ## One-time activation
 

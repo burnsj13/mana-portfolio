@@ -46,7 +46,11 @@ class AlertTests(unittest.TestCase):
     def test_24h_change_handles_missing_zero_and_source_switch(self):
         self.assertIn('no saved snapshot',alerts.check_summary(self.latest,[]))
         self.history[0]['source']='MTGJSON retail'
-        self.assertIn('sources differ',alerts.check_summary(self.latest,self.history))
+        mixed=alerts.check_summary(self.latest,self.history)
+        self.assertIn('+2.00 USD (+50.00%)',mixed)
+        self.assertIn('Mixed-source estimate (MTGJSON → Scryfall)',mixed)
+        self.assertIn('Biggest gainer: Card',mixed)
+        self.assertFalse(alerts.evaluate(self.latest,self.history,self.rule,'collection'))
         self.history[0]['source']='Scryfall USD';self.history[0]['items'][0][4]=0
         self.assertIn('percentage unavailable',alerts.check_summary(self.latest,self.history))
         self.latest['prices']['a']['usd']='0'
