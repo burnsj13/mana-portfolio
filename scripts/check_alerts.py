@@ -73,6 +73,18 @@ def check_summary(latest,history):
         text+=f"{title}: {c['n'][:85]} ({c['f']}) — {c['holding']:+,.2f} USD holdings · {c['dollars']:+.2f} USD/card ({pct}).\n"
     return text
 
+def threshold_description(events,new,rule,limit=1200):
+    text=f"Threshold events ({rule['period']}): {len(events)} matching · {len(new)} new\n"
+    text+=f"Rule: at least {rule['percent']:g}% and ${rule['dollars']:g}/card.\n"
+    fresh={(e['id'],e['f'],e['scope']) for e in new};shown=0
+    for e in sorted(events,key=lambda e:abs(e['percent']),reverse=True):
+        label='new' if (e['id'],e['f'],e['scope']) in fresh else 'ongoing'
+        line=f"{e['n'][:85]} ({e['f']}, {e['scope']}, {label}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%\n"
+        if len(text)+len(line)+100>limit:break
+        text+=line;shown+=1
+    if len(events)>shown:text+=f'Plus {len(events)-shown} additional matching events; view the website for details.\n'
+    return text
+
 def graph_png(history,latest,title):
     from PIL import Image,ImageDraw,ImageFont
     image=Image.new('RGB',(1000,530),'#090f1d');draw=ImageDraw.Draw(image)
@@ -141,7 +153,9 @@ def main():
         last=history[-1]
         cached=f"**{title}** — ${last['value']:,.2f} · {last['covered']:,}/{last['quantity']:,} cards priced\n"
         cached+=f"Saved prices checked: {latest['lastUpdated']}\nOpen collection: {collection_link(args.collection)}\n"
-        cached+=check_summary(latest,history)+'Wishlist entries are excluded from the portfolio total. Prices are indicative.'
+        cached+=check_summary(latest,history)
+        cached+=threshold_description(events,new,rule,limit=1800-len(cached))
+        cached+='Wishlist entries are excluded from the portfolio total. Prices are indicative.'
         save(directory/'discord-summary.json',dict(content=cached,checkedAt=latest['lastUpdated']))
         (directory/'discord-graph.png').write_bytes(image)
     if should_send and webhook and not args.dry_run:
@@ -149,12 +163,7 @@ def main():
         content+=f'Open collection: {collection_link(args.collection)}\n'
         content+=check_summary(latest,history)
         if first_delivery:content+='Discord connected: initial portfolio graph summary.\n'
-        shown=0
-        for e in sorted(new,key=lambda e:abs(e['percent']),reverse=True)[:12]:
-            line=f"{e['n'][:85]} ({e['f']}, {e['scope']}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%\n"
-            if len(content)+len(line)>1700:break
-            content+=line;shown+=1
-        if len(new)>shown:content+=f'Plus {len(new)-shown} additional events; view the website for details.\n'
+        content+=threshold_description(events,new,rule,limit=1800-len(content))
         content+='Wishlist entries are excluded from the portfolio total. Prices are indicative.'
         try:
             post_discord(webhook,content,image);delivered=True

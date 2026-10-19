@@ -22,6 +22,11 @@ class AlertTests(unittest.TestCase):
         self.assertFalse(alerts.evaluate(self.latest,self.history,self.rule,'collection'))
     def test_new_york_date_boundary(self):
         self.assertEqual(alerts.day(dict(date='2026-10-19',timestamp='2026-10-19T01:00:00Z')),'2026-10-18')
+    def test_threshold_description_keeps_new_and_ongoing_events(self):
+        event=dict(id='a',n='Card',f='normal',scope='collection',dollars=1,percent=50)
+        text=alerts.threshold_description([event],[event],self.rule)
+        self.assertIn('1 matching · 1 new',text);self.assertIn('collection, new',text);self.assertIn('$+1.00/card · +50.00%',text)
+        self.assertIn('ongoing',alerts.threshold_description([event],[],self.rule))
     def test_discord_collection_links(self):
         self.assertEqual(alerts.collection_link('main'),'https://burnsj13.github.io/mana-portfolio/')
         self.assertEqual(alerts.collection_link('jacob'),'https://burnsj13.github.io/mana-portfolio/jacob.html')
@@ -54,6 +59,8 @@ class AlertTests(unittest.TestCase):
             save_history(root/'data',self.history+[current])
             with patch.object(alerts,'ROOT',root),patch.object(sys,'argv',['check_alerts.py']),patch.dict(os.environ,{'DISCORD_WEBHOOK_MAIN':'https://discord.com/api/webhooks/123/mock'}),patch.object(alerts,'graph_png',return_value=b'PNG'),patch.object(alerts,'post_discord') as post:
                 alerts.main();alerts.main();self.assertEqual(post.call_count,1)
+                cached=json.loads((root/'data/discord-summary.json').read_text())['content']
+                self.assertIn('Threshold events (day): 1 matching · 0 new',cached);self.assertIn('ongoing',cached)
                 self.latest['prices']['a']['usd']='2';save(root/'data/latest.json',self.latest);alerts.main()
                 self.latest['prices']['a']['usd']='3';save(root/'data/latest.json',self.latest);alerts.main();self.assertEqual(post.call_count,2)
     def test_multipart_upload_and_no_mentions(self):
