@@ -45,7 +45,7 @@ def main():
             request(config,'/rest/v1/rpc/portfolio_bootstrap','POST',dict(p_slug=slug,p_cards=latest['cards'],p_settings=settings))
             print('Collection initial import checked:',slug)
             continue
-        paths=[directory/name for name in ('latest.json','metadata.json','alert-status.json','alert-state.json')]
+        paths=[directory/name for name in ('latest.json','metadata.json','alert-status.json','alert-state.json','discord-summary.json','discord-graph.png')]
         paths+=sorted((directory/'history').glob('*.json'))
         paths+=sorted((directory/'wishlist/history').glob('*.json'))+[directory/'wishlist/latest.json',directory/'wishlist/history-index.json',directory/'history-index.json']
         count=0

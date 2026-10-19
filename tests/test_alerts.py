@@ -69,4 +69,10 @@ class AlertTests(unittest.TestCase):
                 alerts.main();alerts.main();self.assertEqual(post.call_count,1)
                 self.assertIn('Discord connected',post.call_args.args[1])
                 self.assertIn('Open collection: '+alerts.collection_link('main'),post.call_args.args[1])
+    def test_scheduled_summary_ignores_thresholds_and_caches_graph(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);save(root/'settings/main.json',dict(version=1,alerts={**self.rule,'enabled':False},watchlist=[]));save(root/'data/latest.json',self.latest);save_history(root/'data',self.history)
+            with patch.object(alerts,'ROOT',root),patch.object(sys,'argv',['check_alerts.py','--send-summary']),patch.dict(os.environ,{'DISCORD_WEBHOOK_MAIN':'https://discord.com/api/webhooks/123/mock'}),patch.object(alerts,'graph_png',return_value=b'PNG'),patch.object(alerts,'post_discord') as post:
+                alerts.main();self.assertEqual(post.call_count,1);self.assertIn('+2.00 USD',post.call_args.args[1]);self.assertIn('Biggest gainer',post.call_args.args[1])
+            cached=json.loads((root/'data/discord-summary.json').read_text());self.assertIn('+2.00 USD',cached['content']);self.assertEqual((root/'data/discord-graph.png').read_bytes(),b'PNG')
 if __name__=='__main__':unittest.main()

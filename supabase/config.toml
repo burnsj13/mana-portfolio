@@ -1,0 +1,4 @@
+project_id = "mana-portfolio"
+
+[functions.send-discord-summary]
+verify_jwt = false

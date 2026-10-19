@@ -42,8 +42,6 @@ $('watch-find').onclick=async()=>{
 };
 $('copy-settings').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(settings,null,2));$('settings-status').textContent='Settings backup copied.'}catch{$('settings-status').textContent='Clipboard unavailable; use Download settings instead.'}};
 $('export-settings').onclick=()=>{if(!saveDraft())return;const url=URL.createObjectURL(new Blob([JSON.stringify(settings,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=profile+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
-$('publish-settings').href=`https://github.com/burnsj13/mana-portfolio/edit/main/settings/${profile}.json`;
-$('discard-settings').onclick=()=>{localStorage.removeItem(draftKey);initializeSettings(publishedSettings,false)};
 function initializeSettings(value,restore=true){settings=JSON.parse(JSON.stringify(value));if(restore){try{const draft=JSON.parse(localStorage.getItem(draftKey));if(draft?.version===1&&Array.isArray(draft.watchlist)&&draft.alerts)settings=draft}catch{}}
  for(const [id,key] of [['alerts-enabled','enabled'],['alert-period','period'],['alert-direction','direction'],['alert-percent','percent'],['alert-dollars','dollars']])$(id).value=String(settings.alerts[key]);$('daily-summary').checked=!!settings.alerts.dailySummary;
  $('settings-status').textContent=JSON.stringify(settings)!==JSON.stringify(publishedSettings)?'Local draft has unsaved changes.':'Settings loaded from Supabase. Changes save automatically.';renderInsights();

@@ -3,7 +3,8 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 10,22 * * *'
+    - cron: '0 11,23 * * *'
+    - cron: '0 0,12 * * *'
   workflow_dispatch:
     inputs:
       discord_snapshot:
@@ -27,7 +28,20 @@ concurrency:
   group: portfolio
   cancel-in-progress: false
 jobs:
+  schedule:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: python scripts/schedule_check.py
   update:
+    needs: schedule
+    if: needs.schedule.outputs.run == 'true'
     runs-on: ubuntu-latest
     env:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -40,7 +54,7 @@ jobs:
         run: |
           python -m unittest discover -s tests
           node tests/test_market.cjs
-          node tests/test_github_settings.cjs
+          node tests/test_discord_function.cjs
           node tests/test_supabase.cjs
           npm install --prefix work/sql-test --ignore-scripts --no-audit --no-fund @electric-sql/pglite@0.5.10
           node tests/test_supabase_rls.cjs
@@ -64,17 +78,17 @@ jobs:
         continue-on-error: true
         env:
           DISCORD_WEBHOOK_MAIN: ${{ secrets.DISCORD_WEBHOOK_MAIN }}
-        run: python scripts/check_alerts.py ${{ inputs.discord_snapshot && (inputs.discord_collection == 'both' || inputs.discord_collection == 'main') && '--send-summary' || '' }}
+        run: python scripts/check_alerts.py ${{ (github.event_name == 'schedule' || inputs.discord_snapshot && (inputs.discord_collection == 'both' || inputs.discord_collection == 'main') ) && '--send-summary' || '' }}
       - name: Jacob Discord alerts and graph
         continue-on-error: true
         env:
           DISCORD_WEBHOOK_JACOB: ${{ secrets.DISCORD_WEBHOOK_JACOB }}
-        run: python scripts/check_alerts.py --collection jacob ${{ inputs.discord_snapshot && (inputs.discord_collection == 'both' || inputs.discord_collection == 'jacob') && '--send-summary' || '' }}
+        run: python scripts/check_alerts.py --collection jacob ${{ (github.event_name == 'schedule' || inputs.discord_snapshot && (inputs.discord_collection == 'both' || inputs.discord_collection == 'jacob') ) && '--send-summary' || '' }}
       - name: Prepare public site
         run: |
           python scripts/supabase_sync.py
           mkdir _site
-          cp index.html jacob.html app.js market.js insights.js github-settings.js github-settings-ui.js supabase-client.js supabase-ui.js supabase-config.json styles.css _site/
+          cp index.html jacob.html app.js market.js insights.js discord-ui.js supabase-client.js supabase-ui.js supabase-config.json styles.css _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

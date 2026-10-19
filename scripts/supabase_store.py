@@ -17,7 +17,7 @@ def configuration(root):
 def request(config,path,method='GET',body=None,raw=False):
     url,key=config;headers={'apikey':key,'Content-Type':'application/json'}
     if not key.startswith('sb_secret_'):headers['Authorization']='Bearer '+key
-    if raw:headers.update({'Content-Type':'application/json','x-upsert':'true','Cache-Control':'private, max-age=0'})
+    if raw:headers.update({'Content-Type':'image/png' if path.endswith('.png') else 'application/json','x-upsert':'true','Cache-Control':'private, max-age=0'})
     data=body if raw else json.dumps(body).encode() if body is not None else None
     with urlopen(Request(url+path,data=data,headers=headers,method=method),timeout=90) as response:
         content=response.read()

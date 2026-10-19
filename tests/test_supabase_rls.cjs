@@ -13,6 +13,7 @@ const settings={version:1,alerts:{enabled:true},watchlist:[]};
  create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text);alter table storage.objects enable row level security;grant select on storage.objects to anon,authenticated;
  create function storage.foldername(text) returns text[] language sql immutable as $$select (string_to_array($1,'/'))[1:array_length(string_to_array($1,'/'),1)-1]$$;`);
  await db.exec(fs.readFileSync('supabase/migrations/202610190001_portfolio.sql','utf8'));
+ await db.exec(fs.readFileSync('supabase/migrations/202610190002_discord_button.sql','utf8'));
  for(const [name,id] of Object.entries(ids))await db.query('insert into auth.users values($1,$2)',[id,name+'@mana-portfolio.invalid']);
  await db.query("update public.portfolio_collections set owner_id=$1 where slug='main'",[ids.joe]);await db.query("update public.portfolio_collections set owner_id=$1 where slug='jacob'",[ids.jacob]);
  await db.exec("set role service_role");for(const slug of ['main','jacob'])await db.query('select public.portfolio_bootstrap($1,$2,$3)',[slug,JSON.stringify([card]),JSON.stringify(settings)]);await db.exec('reset role');
@@ -35,5 +36,8 @@ const settings={version:1,alerts:{enabled:true},watchlist:[]};
   await assert.rejects(db.query('select public.portfolio_bootstrap($1,$2,$3)',[mine,'[]',JSON.stringify(settings)]),/permission denied/);
   await assert.rejects(db.query('select public.portfolio_initialize($1,$2,$3)',[mine,'[]',JSON.stringify(settings)]),/already imported/);
  }
- await db.close();console.log('PASS Postgres RLS: anonymous/strangers denied, both owners can read both, only own cards/settings writable, owner assignment/import protected');
+ await as('joe');await assert.rejects(db.query("select public.portfolio_claim_discord('main')"),/permission denied/);
+ await db.exec('reset role;set role service_role');assert.equal((await db.query("select public.portfolio_claim_discord('main') as ok")).rows[0].ok,true);assert.equal((await db.query("select public.portfolio_claim_discord('main') as ok")).rows[0].ok,false);assert.equal((await db.query("select public.portfolio_claim_discord('jacob') as ok")).rows[0].ok,true);
+ await db.exec("update public.portfolio_discord_cooldown set sent_at=now()-interval '61 seconds' where collection='main'");assert.equal((await db.query("select public.portfolio_claim_discord('main') as ok")).rows[0].ok,true);
+ await db.close();console.log('PASS Postgres RLS and atomic per-collection Discord cooldown');
 })().catch(e=>{console.error(e.message);process.exitCode=1});

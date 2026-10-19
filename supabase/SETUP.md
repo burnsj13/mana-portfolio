@@ -20,7 +20,7 @@ placeholder emails; personal emails and email delivery are not required.
 4. In GitHub repository Settings → Secrets and variables → Actions, add
    `SUPABASE_SERVICE_ROLE_KEY`. Its value is a Supabase server **Secret key**
    (`sb_secret_…`) or the legacy **service_role** key. This powerful key stays in
-   GitHub Actions, never in browser configuration or committed files. The public
+   server-side jobs, never in browser configuration or committed files. The public
    Project URL and publishable key are already in `supabase-config.json`.
 5. Push the code and run **Update prices and deploy**. The first run atomically
    imports existing holdings and settings for each profile; subsequent runs never
@@ -29,8 +29,8 @@ placeholder emails; personal emails and email delivery are not required.
    archives. The public Pages artifact contains only app assets and public config.
 6. Open the website, choose Joe or Jacob, and enter that account's password. Use
    **Account & collection → Add or edit collection cards** for holdings. Wishlist
-   and alert edits save automatically after a short delay. The manual Discord test
-   remains available through its existing repository-scoped GitHub connection.
+   and alert edits save automatically after a short delay. The Discord button uses a public Supabase function; follow `DISCORD.md` for its
+   one-time setup. No GitHub credential is requested on the website.
 
 If the update fails, open the failed Actions run. A missing server secret, schema,
 owner assignment or initial import is an error; the updater does not silently
@@ -66,7 +66,7 @@ and settings, without adding one row per historical card price.
 ```
 python -m unittest discover -s tests
 node tests/test_market.cjs
-node tests/test_github_settings.cjs
+node tests/test_discord_function.cjs
 node tests/test_supabase.cjs
 npm install --prefix work/sql-test --ignore-scripts @electric-sql/pglite@0.5.10
 node tests/test_supabase_rls.cjs

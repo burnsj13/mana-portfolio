@@ -132,9 +132,17 @@ def main():
     summary=args.send_summary or first_delivery or (rule.get('enabled',False) and rule.get('dailySummary',False) and previous.get('summaryDate')!=today)
     should_send=bool(new or summary);delivered=False
     title='Jacob’s Collection' if args.collection=='jacob' else 'Mana Portfolio'
-    if should_send or args.graph_output:
-        image=graph_png(history,latest,title)
-        if args.graph_output:Path(args.graph_output).write_bytes(image)
+    # Prepare a private cached graph for the public Supabase send button on every
+    # price check. Button clicks never need GitHub access or trigger a refresh.
+    image=graph_png(history,latest,title)
+    if args.graph_output:Path(args.graph_output).write_bytes(image)
+    if not args.dry_run:
+        last=history[-1]
+        cached=f"**{title}** — ${last['value']:,.2f} · {last['covered']:,}/{last['quantity']:,} cards priced\n"
+        cached+=f"Saved prices checked: {latest['lastUpdated']}\nOpen collection: {collection_link(args.collection)}\n"
+        cached+=check_summary(latest,history)+'Wishlist entries are excluded from the portfolio total. Prices are indicative.'
+        save(directory/'discord-summary.json',dict(content=cached,checkedAt=latest['lastUpdated']))
+        (directory/'discord-graph.png').write_bytes(image)
     if should_send and webhook and not args.dry_run:
         last=history[-1];content=f"**{title}** — ${last['value']:,.2f} · {last['covered']:,}/{last['quantity']:,} cards priced\nPeriod: {rule['period']} · {len(new)} new threshold event(s)\n"
         content+=f'Open collection: {collection_link(args.collection)}\n'
