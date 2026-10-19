@@ -6,6 +6,10 @@ on:
     - cron: '17 10,22 * * *'
   workflow_dispatch:
     inputs:
+      discord_snapshot:
+        description: Send graph summaries to configured Discord channels now
+        type: boolean
+        default: false
       backfill:
         description: Import available archived history for both separate collections
         type: boolean
@@ -26,7 +30,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Validate archive retention
-        run: python -m unittest discover -s tests
+        run: |
+          python -m unittest discover -s tests
+          node tests/test_market.cjs
       - name: Historical import
         if: inputs.backfill
         run: |
@@ -37,6 +43,18 @@ jobs:
         run: python scripts/update_prices.py
       - name: Update Jacob collection
         run: python scripts/update_prices.py --collection jacob
+      - name: Install graph renderer
+        run: pip install Pillow
+      - name: Main Discord alerts and graph
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_MAIN: ${{ secrets.DISCORD_WEBHOOK_MAIN }}
+        run: python scripts/check_alerts.py ${{ inputs.discord_snapshot && '--send-summary' || '' }}
+      - name: Jacob Discord alerts and graph
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_JACOB: ${{ secrets.DISCORD_WEBHOOK_JACOB }}
+        run: python scripts/check_alerts.py --collection jacob ${{ inputs.discord_snapshot && '--send-summary' || '' }}
       - name: Commit observations
         run: |
           git config user.name 'github-actions[bot]'
@@ -49,7 +67,8 @@ jobs:
       - name: Prepare public site
         run: |
           mkdir _site
-          cp index.html jacob.html app.js styles.css _site/
+          cp index.html jacob.html app.js market.js insights.js styles.css _site/
+          cp -r settings _site/
           cp -r data _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

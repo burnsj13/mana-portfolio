@@ -48,14 +48,21 @@ function changeFor(card){
  if(!item||Number(item[4])<=0)return null;
  return {value:(current-Number(item[4]))/Number(item[4])*100,label:'Since first saved snapshot: '+snapshot.date+' · '+snapshot.source};
 }
+function dailyFor(card){
+ if(state.dailyCacheVersion!==state.latest){
+  const end={date:state.latest.lastUpdated.slice(0,10),timestamp:state.latest.lastUpdated,source:state.latest.source};
+  const result=Market.rows(state.cards,state.prices,state.history,end,'day');state.dailyCache=new Map(result.rows.map(r=>[Market.key(r),{...r,date:result.base.date}]));state.dailyCacheVersion=state.latest;
+ }
+ return state.dailyCache.get(Market.key(card));
+}
 function renderTable(){
  hidePreview();
  const search=$('search').value.toLowerCase();let rows=state.cards.filter(c=>matches(c,unit(c))).filter(c=>[c.n,c.binder,c.set,c.setName,info(c).type].join(' ').toLowerCase().includes(search));
- function key(c){const p=unit(c);switch(state.sort){case 'unit':return p;case 'value':return p==null?null:p*c.q;case 'change':return changeFor(c)?.value??null;case 'gain':return p==null?null:(p-c.cost)*c.q;default:return c[state.sort]??''}}
+ function key(c){const p=unit(c);switch(state.sort){case 'unit':return p;case 'value':return p==null?null:p*c.q;case 'dayDollars':return dailyFor(c)?.dollars??null;case 'dayPercent':return dailyFor(c)?.percent??null;case 'change':return changeFor(c)?.value??null;case 'gain':return p==null?null:(p-c.cost)*c.q;default:return c[state.sort]??''}}
  rows.sort((a,b)=>{const x=key(a),y=key(b);if(x==null)return y==null?0:1;if(y==null)return -1;return state.direction*(typeof x==='number'?x-y:String(x).localeCompare(String(y)))||a.n.localeCompare(b.n)});
  const pages=Math.max(1,Math.ceil(rows.length/size));state.page=Math.min(state.page,pages-1);const first=state.page*size;
  state.visibleRows=rows.slice(first,first+size);
- $('rows').innerHTML=state.visibleRows.map((c,i)=>{const p=unit(c),change=changeFor(c);return `<tr><td><button class="card-name" data-card="${i}" aria-haspopup="dialog">${esc(c.n)}</button><div class="sub">${esc(c.f)} · ${esc(info(c).type||'Type unavailable')}</div></td><td>${esc(c.binder||'Unassigned')}<div class="sub">${esc(c.binderType||'')}</div></td><td>${esc(c.setName||c.set)}<div class="sub">${esc(c.set)}</div></td><td>${c.q}</td><td>${p==null?'—':money(p)}</td><td>${p==null?'—':money(p*c.q)}</td><td>${p==null?'—':money((p-c.cost)*c.q)}</td><td title="${esc(change?.label||'No usable comparison price')}" class="${change?(change.value>=0?'up':'down'):''}">${change?(change.value>=0?'+':'')+change.value.toFixed(2)+'%':'—'}</td></tr>`}).join('');
+ $('rows').innerHTML=state.visibleRows.map((c,i)=>{const p=unit(c),change=changeFor(c),daily=dailyFor(c);return `<tr><td><button class="card-name" data-card="${i}" aria-haspopup="dialog">${esc(c.n)}</button><div class="sub">${esc(c.f)} · ${esc(info(c).type||'Type unavailable')}</div></td><td>${esc(c.binder||'Unassigned')}<div class="sub">${esc(c.binderType||'')}</div></td><td>${esc(c.setName||c.set)}<div class="sub">${esc(c.set)}</div></td><td>${c.q}</td><td>${p==null?'—':money(p)}</td><td>${p==null?'—':money(p*c.q)}</td><td>${p==null?'—':money((p-c.cost)*c.q)}</td><td title="${esc(change?.label||'No usable comparison price')}" class="${change?(change.value>=0?'up':'down'):''}">${change?(change.value>=0?'+':'')+change.value.toFixed(2)+'%':'—'}</td><td title="${esc(daily?'Compared with '+daily.date+(daily.compatible?'':' · Mixed-source estimate'):'No comparison price')}">${daily?(daily.dollars>=0?'+':'−')+money(Math.abs(daily.dollars))+(daily.compatible?'':' †'):'—'}</td><td title="${esc(daily?.compatible?'Matching source':'Mixed sources or unavailable')}">${daily?.percent!=null?(daily.percent>=0?'+':'')+daily.percent.toFixed(2)+'%'+(daily.compatible?'':' †'):'—'}</td></tr>`}).join('');
  $('shown').textContent=rows.length?`Showing ${first+1}–${Math.min(first+size,rows.length)} of ${rows.length.toLocaleString()} matching entries`:'No matching entries';$('page').textContent=`Page ${state.page+1} of ${pages}`;$('previous').disabled=state.page===0;$('next').disabled=state.page===pages-1;
  document.querySelectorAll('[data-sort]').forEach(b=>{b.textContent=b.dataset.label+(b.dataset.sort===state.sort?(state.direction===1?' ↑':' ↓'):'');b.parentElement.setAttribute('aria-sort',b.dataset.sort===state.sort?(state.direction===1?'ascending':'descending'):'none')});
 }
@@ -89,7 +96,7 @@ function inspect(index){
  $('hover-layer').innerHTML=`<line x1="${cx}" y1="25" x2="${cx}" y2="240" stroke="#8da2bb" stroke-dasharray="4 4"/><circle cx="${cx}" cy="${cy}" r="6" fill="#68e4b7" stroke="#090f1d" stroke-width="3"/><rect x="${boxX}" y="${boxY}" width="228" height="65" rx="9" fill="#090f1d" stroke="#5379e8"/><text x="${boxX+12}" y="${boxY+22}" fill="#a3b3c9" font-size="11">${esc(date)}</text><text x="${boxX+12}" y="${boxY+47}" fill="#f0f5ff" font-size="17" font-weight="700">${esc(value)}</text>`;
  $('tip').textContent=`${date} · ${money(p.value)} · ${p.covered}/${p.quantity} cards priced · ${p.source||'Saved snapshot'}`;
 }
-function refreshViews(){state.page=0;draw();renderTable()}
+function refreshViews(){state.page=0;draw();renderTable();window.dispatchEvent(new Event('portfolio-ready'))}
 async function load(){
  $('reload').disabled=true;try{
   const urls=['latest','metadata'];const responses=await Promise.all(urls.map(n=>fetch(`${dataPath}/${n}.json`,{cache:'no-store'})));
@@ -103,7 +110,7 @@ for(const id of ['binder','set','color','type','minimum'])$(id).onchange=refresh
 $('metric').onchange=draw;$('search').oninput=()=>{state.page=0;renderTable()};
 function reset(){for(const id of ['binder','set','color','type'])$(id).value='';$('minimum').value='0';$('search').value=''}
 $('reset').onclick=()=>{reset();refreshViews()};
-document.querySelectorAll('[data-sort]').forEach(b=>{b.dataset.label=b.textContent.replace(/ [↑↓]$/,'');b.onclick=()=>{if(state.sort===b.dataset.sort)state.direction*=-1;else{state.sort=b.dataset.sort;state.direction=['q','unit','value','gain','change'].includes(state.sort)?-1:1}state.page=0;renderTable()}});
+document.querySelectorAll('[data-sort]').forEach(b=>{b.dataset.label=b.textContent.replace(/ [↑↓]$/,'');b.onclick=()=>{if(state.sort===b.dataset.sort)state.direction*=-1;else{state.sort=b.dataset.sort;state.direction=['q','unit','value','gain','change','dayDollars','dayPercent'].includes(state.sort)?-1:1}state.page=0;renderTable()}});
 document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{state.range=b.dataset.range;document.querySelectorAll('[data-range]').forEach(z=>z.classList.toggle('active',z===b));draw()});
 $('previous').onclick=()=>{state.page--;renderTable()};$('next').onclick=()=>{state.page++;renderTable()};
 $('chart').onpointermove=$('chart').onpointerdown=e=>{if(!state.points.length)return;const rect=$('chart').getBoundingClientRect(),position=(e.clientX-rect.left)/rect.width*800;let closest=0;state.points.forEach((p,i)=>{if(Math.abs(state.geometry.x(p.time)-position)<Math.abs(state.geometry.x(state.points[closest].time)-position))closest=i});inspect(closest)};

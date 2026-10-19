@@ -75,7 +75,7 @@ def valuation(cards,prices,date,source):
     return dict(date=date,value=round(total,2),basis=round(basis,2),covered=covered,quantity=quantity,source=source,items=items)
 def mapping_for(cards):
     ids={c['id'] for c in cards if c['proxy']!='true'}; mapping={}; metadata={}
-    for code in sorted({c['set'] for c in cards if c['proxy']!='true'}):
+    for code in sorted({c['set'] for c in cards if c['proxy']!='true' and c.get('set')}):
         print('Historical set:',code,flush=True)
         try: data=read(f'https://mtgjson.com/api/v5/{code}.json')['data']
         except HTTPError as error:
@@ -104,6 +104,15 @@ def main():
         DATA_DIR=ROOT/'data/jacob'; CSV_PATH=ROOT/'Jacob_manabox.csv'
     start_date=args.start_date or ('2024-10-19' if args.collection=='jacob' else '1900-01-01')
     datetime.strptime(start_date,'%Y-%m-%d')
+    settings_path=ROOT/'settings'/(args.collection+'.json')
+    settings=json.loads(settings_path.read_text(encoding='utf-8-sig')) if settings_path.exists() else {'watchlist':[]}
+    import uuid
+    watch_cards=[]
+    for entry in settings.get('watchlist',[]):
+        uuid.UUID(entry['id'])
+        if entry.get('f') not in ('normal','foil','etched'): raise ValueError('Invalid wishlist finish')
+        watch_cards.append(dict(n=entry['n'],id=entry['id'],f=entry['f'],q=1,cost=0,proxy='false',binder='Wishlist',set=entry.get('set',''),setName=entry.get('setName','')))
+    if len(watch_cards)>200: raise ValueError('Wishlist maximum is 200 printings')
     cards=collection(); now=datetime.now(timezone.utc).isoformat(); path=DATA_DIR/'history.json'
     history=load_history(DATA_DIR)
     if args.metadata_only:
@@ -136,7 +145,7 @@ def main():
         if not dates: raise RuntimeError('No historical prices found; check archive availability and set mappings')
         return
     if not (DATA_DIR/'metadata.json').exists(): mapping_for(cards)
-    ids=sorted({c['id'] for c in cards if c['proxy']!='true' and c['id']}); prices={}
+    ids=sorted({c['id'] for c in cards+watch_cards if c['proxy']!='true' and c['id']}); prices={}
     source='Scryfall USD'; price_as_of=now[:10]
     try:
         for i in range(0,len(ids),75):
@@ -157,7 +166,7 @@ def main():
     except HTTPError as error:
         if error.code not in (400,403,429,500,502,503,504): raise
         print('Scryfall unavailable; using labeled MTGJSON TCGplayer fallback',flush=True)
-        mapping=mapping_for(cards); prices={}; days=[]
+        mapping=mapping_for(cards+watch_cards); prices={}; days=[]
         with request('https://mtgjson.com/api/v5/AllPricesToday.json.gz') as response:
             with gzip.GzipFile(fileobj=response) as stream: records=json.load(stream)['data']
         for uid,sid in mapping.items():
@@ -174,5 +183,11 @@ def main():
     history.append(snapshot); history.sort(key=lambda h:h.get('timestamp',h['date']))
     save(DATA_DIR/'latest.json',dict(cards=cards,prices=prices,lastUpdated=now,source=source,priceAsOf=price_as_of))
     save_history(DATA_DIR,history)
+    watch_dir=DATA_DIR/'wishlist'
+    watch_history=load_history(watch_dir)
+    if watch_cards:
+        observed=valuation(watch_cards,prices,now[:10],source);observed.update(timestamp=now,priceAsOf=price_as_of);watch_history.append(observed)
+    save(watch_dir/'latest.json',dict(cards=watch_cards,prices={c['id']:prices.get(c['id'],{}) for c in watch_cards},lastUpdated=now,source=source,priceAsOf=price_as_of))
+    save_history(watch_dir,watch_history)
     print('Snapshot saved:',{k:v for k,v in snapshot.items() if k!='items'})
 if __name__=='__main__': main()

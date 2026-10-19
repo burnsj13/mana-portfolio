@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "alerts": {
+    "enabled": true,
+    "percent": 10,
+    "dollars": 1,
+    "period": "day",
+    "direction": "both",
+    "dailySummary": false
+  },
+  "watchlist": []
+}
