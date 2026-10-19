@@ -38,6 +38,37 @@ def evaluate(latest,history,rule,scope):
         events.append(dict(id=c['id'],n=c['n'],f=c['f'],q=c['q'],price=float(raw),dollars=round(delta,4),percent=round(percent,4),scope=scope,baseline=day(before),direction='up' if delta>0 else 'down'))
     return events
 
+def check_summary(latest,history):
+    """Compare with the immediately preceding observation, including same-day runs."""
+    end=dict(date=latest['lastUpdated'][:10],timestamp=latest['lastUpdated'],source=latest['source'])
+    earlier=[h for h in history if timestamp(h)<timestamp(end)]
+    if not earlier:return 'Previous-check change: unavailable (first saved check).\n'
+    before=max(earlier,key=timestamp)
+    label=timestamp(before).astimezone(ZoneInfo('America/New_York')).strftime('%b %d, %I:%M %p %Z')
+    if source(before)!=source(end):return f'Previous check: {label}. Price sources differ; change and movers unavailable.\n'
+    old={(i[0],i[1]):float(i[4]) for i in before.get('items',[]) if i[4] is not None}
+    grouped={}
+    for c in latest['cards']:
+        if c['proxy']=='true':continue
+        key=(c['id'],c['f'])
+        if key in grouped:grouped[key]['q']+=c['q']
+        else:grouped[key]=dict(c)
+    moves=[];prior_total=delta=0;covered=0
+    for key,c in grouped.items():
+        raw=latest['prices'].get(c['id'],{}).get({'foil':'usd_foil','etched':'usd_etched'}.get(c['f'],'usd'))
+        if raw is None or key not in old:continue
+        dollars=float(raw)-old[key];holding=dollars*c['q'];prior_total+=old[key]*c['q'];delta+=holding;covered+=c['q']
+        moves.append(dict(c,holding=holding,dollars=dollars,percent=dollars/old[key]*100 if old[key]>0 else None))
+    if not moves:return f'Previous check: {label}. No matching priced cards to compare.\n'
+    percent=f'{delta/prior_total*100:+.2f}%' if prior_total>0 else 'percentage unavailable'
+    text=f'Since previous check ({label}): **{delta:+,.2f} USD ({percent})**\nMatched price change on {covered:,} current copies; excludes added/removed and unpriced cards.\n'
+    for title,rows,reverse in [('Biggest gainer',[m for m in moves if m['holding']>0],True),('Biggest loser',[m for m in moves if m['holding']<0],False)]:
+        if not rows:text+=title+': none.\n';continue
+        c=sorted(rows,key=lambda m:m['holding'],reverse=reverse)[0]
+        pct=f"{c['percent']:+.2f}%" if c['percent'] is not None else 'percentage unavailable'
+        text+=f"{title}: {c['n'][:85]} ({c['f']}) — {c['holding']:+,.2f} USD holdings · {c['dollars']:+.2f} USD/card ({pct}).\n"
+    return text
+
 def graph_png(history,latest,title):
     from PIL import Image,ImageDraw,ImageFont
     image=Image.new('RGB',(1000,530),'#090f1d');draw=ImageDraw.Draw(image)
@@ -103,9 +134,14 @@ def main():
         if args.graph_output:Path(args.graph_output).write_bytes(image)
     if should_send and webhook and not args.dry_run:
         last=history[-1];content=f"**{title}** — ${last['value']:,.2f} · {last['covered']:,}/{last['quantity']:,} cards priced\nPeriod: {rule['period']} · {len(new)} new threshold event(s)\n"
+        content+=check_summary(latest,history)
         if first_delivery:content+='Discord connected: initial portfolio graph summary.\n'
-        for e in sorted(new,key=lambda e:abs(e['percent']),reverse=True)[:12]:content+=f"{e['n'][:85]} ({e['f']}, {e['scope']}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%\n"
-        if len(new)>12:content+=f'Plus {len(new)-12} additional events; view the website for details.\n'
+        shown=0
+        for e in sorted(new,key=lambda e:abs(e['percent']),reverse=True)[:12]:
+            line=f"{e['n'][:85]} ({e['f']}, {e['scope']}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%\n"
+            if len(content)+len(line)>1700:break
+            content+=line;shown+=1
+        if len(new)>shown:content+=f'Plus {len(new)-shown} additional events; view the website for details.\n'
         content+='Wishlist entries are excluded from the portfolio total. Prices are indicative.'
         try:
             post_discord(webhook,content,image);delivered=True

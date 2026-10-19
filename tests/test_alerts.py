@@ -22,6 +22,24 @@ class AlertTests(unittest.TestCase):
         self.assertFalse(alerts.evaluate(self.latest,self.history,self.rule,'collection'))
     def test_new_york_date_boundary(self):
         self.assertEqual(alerts.day(dict(date='2026-10-19',timestamp='2026-10-19T01:00:00Z')),'2026-10-18')
+    def test_previous_check_uses_same_day_and_current_quantities(self):
+        previous=dict(date='2026-10-19',timestamp='2026-10-19T10:00:00Z',source='Scryfall USD',items=[['a','normal',99,'',2.5],['b','foil',1,'',5]])
+        latest={**self.latest,'cards':[self.card,dict(self.card,id='b',n='Loser',f='foil',q=1),dict(self.card,id='new',n='New',q=10)],'prices':{'a':{'usd':3},'b':{'usd_foil':4.5},'new':{'usd':100}}}
+        current=dict(previous,timestamp=latest['lastUpdated'])
+        text=alerts.check_summary(latest,self.history+[previous,current])
+        self.assertIn('+0.50 USD (+5.00%)',text)
+        self.assertIn('Biggest gainer: Card (normal) — +1.00 USD holdings',text)
+        self.assertIn('Biggest loser: Loser (foil) — -0.50 USD holdings',text)
+        self.assertIn('Oct 19, 06:00 AM EDT',text)
+    def test_previous_check_handles_missing_zero_and_source_switch(self):
+        self.assertIn('first saved check',alerts.check_summary(self.latest,[]))
+        self.history[0]['source']='MTGJSON retail'
+        self.assertIn('sources differ',alerts.check_summary(self.latest,self.history))
+        self.history[0]['source']='Scryfall USD';self.history[0]['items'][0][4]=0
+        self.assertIn('percentage unavailable',alerts.check_summary(self.latest,self.history))
+        self.latest['prices']['a']['usd']='0'
+        text=alerts.check_summary(self.latest,self.history)
+        self.assertIn('Biggest gainer: none.',text);self.assertIn('Biggest loser: none.',text)
     def test_sends_once_and_rearms_without_network(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);save(root/'settings/main.json',dict(version=1,alerts=self.rule,watchlist=[]));save(root/'data/latest.json',self.latest)
