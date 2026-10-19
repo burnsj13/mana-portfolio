@@ -30,7 +30,8 @@ class AlertTests(unittest.TestCase):
         latest={**self.latest,'cards':[self.card,dict(self.card,id='b',n='Loser',f='foil',q=1),dict(self.card,id='new',n='New',q=10)],'prices':{'a':{'usd':3},'b':{'usd_foil':4.5},'new':{'usd':100}}}
         current=dict(previous,timestamp=latest['lastUpdated'])
         recent=dict(previous,date='2026-10-19',timestamp='2026-10-19T10:00:00Z',items=[['a','normal',99,'',100]])
-        text=alerts.check_summary(latest,self.history+[previous,recent,current])
+        older=dict(previous,timestamp='2026-10-18T21:00:00Z',items=[['a','normal',1,'',100]])
+        text=alerts.check_summary(latest,[older,previous,recent,current])
         self.assertIn('+0.50 USD (+5.00%)',text)
         self.assertIn('Biggest gainer: Card (normal) — +1.00 USD holdings',text)
         self.assertIn('Biggest loser: Loser (foil) — -0.50 USD holdings',text)
