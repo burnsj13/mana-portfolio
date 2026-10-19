@@ -1,0 +1,60 @@
+name: Update prices and deploy
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 10,22 * * *'
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: Import available historical prices since October 6, 2026
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: portfolio
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Historical import
+        if: inputs.backfill
+        run: |
+          pip install ijson
+          python scripts/update_prices.py --backfill
+      - run: python scripts/update_prices.py
+      - name: Commit observations
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update collection price snapshots'
+            git push
+          fi
+      - name: Prepare public site
+        run: |
+          mkdir _site
+          cp index.html _site/
+          cp -r data _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: update
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
