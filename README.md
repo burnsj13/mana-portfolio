@@ -42,3 +42,6 @@ Dropdowns filter by ManaBox binder, printed set, color, type, and per-card unit 
 Snapshots now save compact per-entry data: [Scryfall ID, finish, quantity, binder, unit price]. Archived October data has been enriched with this detail. Older observations without detail remain on the whole-portfolio graph, but are explicitly omitted from filtered history. The latest observation can use the corresponding latest published per-card prices. Historical set and type matching uses the current printing metadata; unknown metadata is excluded only when that filter needs it.
 
 Hover or tap the graph for an in-chart point, crosshair, date, and exact value. Keyboard left/right arrows inspect points. The chart uses actual elapsed dates and precise currency axis labels.
+
+
+Hover, keyboard-focus, or tap a card name for an image and locally stored rules, mana cost, type, power/toughness, set, binder, and unit price. Multi-face cards show all available faces’ rules. Artwork loads from Scryfall’s image host; rules still work when the image is unavailable. Escape, the close button, or clicking outside dismisses the panel. `python scripts/update_prices.py --metadata-only` refreshes rules metadata without changing prices.

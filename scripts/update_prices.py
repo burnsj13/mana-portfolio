@@ -49,15 +49,20 @@ def mapping_for(cards):
                 previous=metadata.get(sid,{})
                 lines=previous.get('type','').split(' // ') if previous.get('type') else []
                 if card.get('type') and card['type'] not in lines: lines.append(card['type'])
-                metadata[sid]=dict(colors=sorted(set(previous.get('colors',[])+card.get('colors',[]))),type=' // '.join(lines),types=sorted(set(previous.get('types',[])+card.get('types',[]))))
+                faces=previous.get('faces',[])
+                face=dict(name=card.get('faceName') or card.get('name',''),mana=card.get('manaCost',''),text=card.get('text',''),type=card.get('type',''),power=card.get('power'),toughness=card.get('toughness'),loyalty=card.get('loyalty'))
+                if not any(f['name']==face['name'] for f in faces): faces.append(face)
+                metadata[sid]=dict(faces=faces,colors=sorted(set(previous.get('colors',[])+card.get('colors',[]))),type=' // '.join(lines),types=sorted(set(previous.get('types',[])+card.get('types',[]))))
         time.sleep(.12)
     save(ROOT/'data/metadata.json',metadata)
     return mapping
 
 def main():
-    ap=argparse.ArgumentParser(); ap.add_argument('--backfill',action='store_true'); args=ap.parse_args()
+    ap=argparse.ArgumentParser(); ap.add_argument('--backfill',action='store_true'); ap.add_argument('--metadata-only',action='store_true'); args=ap.parse_args()
     cards=collection(); now=datetime.now(timezone.utc).isoformat(); path=ROOT/'data/history.json'
     history=json.loads(path.read_text()) if path.exists() else []
+    if args.metadata_only:
+        mapping_for(cards); return
     if args.backfill:
         import ijson
         mapping=mapping_for(cards)
@@ -100,7 +105,8 @@ def main():
                 colors=sorted({color for face in faces for color in face.get('colors',c.get('colors',[]))})
                 line=c.get('type_line','')
                 types=[t for t in ['Artifact','Creature','Enchantment','Instant','Kindred','Land','Planeswalker','Sorcery'] if t in line.split(' — ')[0].split() or any(t in face.get('type_line','').split(' — ')[0].split() for face in faces)]
-                metadata[c['id']]=dict(colors=colors,type=line,types=types)
+                details=[dict(name=f.get('name',c.get('name','')),mana=f.get('mana_cost',''),text=f.get('oracle_text',''),type=f.get('type_line',line),power=f.get('power'),toughness=f.get('toughness'),loyalty=f.get('loyalty')) for f in faces]
+                metadata[c['id']]=dict(colors=colors,type=line,types=types,faces=details)
             save(metadata_path,metadata)
             time.sleep(.15)
     except HTTPError as error:
