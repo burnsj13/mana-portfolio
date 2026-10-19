@@ -4,6 +4,7 @@ const money=n=>Number(n).toLocaleString('en-US',{style:'currency',currency:'USD'
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={cards:[],prices:{},history:[],metadata:{},latest:{},sort:'value',direction:-1,page:0,range:'ALL',points:[],hover:0};
 const size=100;
+const dataPath=document.documentElement.dataset.collection==='jacob'?'./data/jacob':'./data';
 function unit(c,prices=state.prices){const p=prices[c.id]||{};const v=p[{foil:'usd_foil',etched:'usd_etched'}[c.f]||'usd'];return v==null?null:Number(v)}
 function info(c){return {...c,...state.metadata[c.id]}}
 function filters(){return {binder:$('binder').value,set:$('set').value,color:$('color').value,type:$('type').value,min:Number($('minimum').value)}}
@@ -19,19 +20,42 @@ function initializeFilters(){
  const sets=new Map(state.cards.map(c=>[c.set,c.setName||c.set]));options('set',[...sets].sort((a,b)=>a[1].localeCompare(b[1])).map(([s,n])=>[s,`${n} (${s})`]));
  options('type',[...new Set(Object.values(state.metadata).flatMap(m=>m.types||[]))].sort().map(s=>[s,s]));
 }
-function overview(){let total=0,basis=0,covered=0,count=0;for(const c of state.cards){if(c.proxy==='true')continue;count+=c.q;const p=unit(c);if(p!=null){total+=p*c.q;basis+=c.cost*c.q;covered+=c.q}}
+function overview(){
+ $('comparison-note').textContent='Change % since this collection’s first saved snapshot ('+(state.history[0]?.date||'unavailable')+'), using per-card unit prices for the same printing and finish. Missing or zero baselines show —; different price sources can affect comparisons.';let total=0,basis=0,covered=0,count=0;for(const c of state.cards){if(c.proxy==='true')continue;count+=c.q;const p=unit(c);if(p!=null){total+=p*c.q;basis+=c.cost*c.q;covered+=c.q}}
  $('total').textContent=covered?money(total):'—';$('basis').textContent=money(basis);$('difference').textContent=money(total-basis);$('difference').className=total>=basis?'up':'down';$('count').textContent=count.toLocaleString();$('coverage').textContent=`${covered.toLocaleString()} / ${count.toLocaleString()} cards priced`;
- const latest=state.latest;const prior=state.history.filter(h=>h.date<latest.lastUpdated.slice(0,10)).at(-1);$('daily').textContent=prior?money(total-prior.value):'—';
+ const latest=state.latest;const prior=state.history[0];$('daily').textContent=prior?money(total-prior.value):'—';
  $('updated').textContent=`Checked ${new Date(latest.lastUpdated).toLocaleString()} · ${latest.source||'Scryfall USD'} · prices as of ${latest.priceAsOf||latest.lastUpdated.slice(0,10)}`;
+}
+function historyItems(snapshot){
+ if(snapshot?.items)return snapshot.items;
+ return snapshot?.rowLayout?snapshot.rowLayout.map((row,i)=>[...row,snapshot.unitPrices[i]]):null;
+}
+async function loadHistory(){
+ const response=await fetch(`${dataPath}/history-index.json`,{cache:'no-store'});
+ if(response.status===404){const legacy=await fetch(`${dataPath}/history.json`,{cache:'no-store'});if(!legacy.ok)throw Error('History unavailable');state.historyArchives=null;return legacy.json()}
+ if(!response.ok)throw Error('History index unavailable');
+ const index=await response.json();
+ if(index.version!==1||!index.files.every(name=>/^history\/\d{4}-\d{2}\.json$/.test(name)))throw Error('Invalid history index');
+ const archives=await Promise.all(index.files.map(async name=>{const r=await fetch(`${dataPath}/${name}`,{cache:'no-store'});if(!r.ok)throw Error('History month unavailable: '+name);return r.json()}));
+ state.historyArchives=archives;
+ return archives.flatMap(archive=>archive.snapshots.map(h=>{if(h.layout==null)return h;const rows=archive.layouts[h.layout];if(!rows||rows.length!==h.unitPrices.length)throw Error('Invalid history layout');return {...h,rowLayout:rows}})).sort((a,b)=>(a.timestamp||a.date).localeCompare(b.timestamp||b.date));
+}
+function changeFor(card){
+ const current=unit(card);if(current==null)return null;
+ const snapshot=state.history[0];
+ if(!state.baselinePrices||state.baselineSnapshot!==snapshot){state.baselineSnapshot=snapshot;state.baselinePrices=new Map((historyItems(snapshot)||[]).filter(i=>i[4]!=null).map(i=>[i[0]+'|'+i[1],i]));}
+ const item=state.baselinePrices.get(card.id+'|'+card.f);
+ if(!item||Number(item[4])<=0)return null;
+ return {value:(current-Number(item[4]))/Number(item[4])*100,label:'Since first saved snapshot: '+snapshot.date+' · '+snapshot.source};
 }
 function renderTable(){
  hidePreview();
  const search=$('search').value.toLowerCase();let rows=state.cards.filter(c=>matches(c,unit(c))).filter(c=>[c.n,c.binder,c.set,c.setName,info(c).type].join(' ').toLowerCase().includes(search));
- function key(c){const p=unit(c);switch(state.sort){case 'unit':return p;case 'value':return p==null?null:p*c.q;case 'gain':return p==null?null:(p-c.cost)*c.q;default:return c[state.sort]??''}}
+ function key(c){const p=unit(c);switch(state.sort){case 'unit':return p;case 'value':return p==null?null:p*c.q;case 'change':return changeFor(c)?.value??null;case 'gain':return p==null?null:(p-c.cost)*c.q;default:return c[state.sort]??''}}
  rows.sort((a,b)=>{const x=key(a),y=key(b);if(x==null)return y==null?0:1;if(y==null)return -1;return state.direction*(typeof x==='number'?x-y:String(x).localeCompare(String(y)))||a.n.localeCompare(b.n)});
  const pages=Math.max(1,Math.ceil(rows.length/size));state.page=Math.min(state.page,pages-1);const first=state.page*size;
  state.visibleRows=rows.slice(first,first+size);
- $('rows').innerHTML=state.visibleRows.map((c,i)=>{const p=unit(c);return `<tr><td><button class="card-name" data-card="${i}" aria-haspopup="dialog">${esc(c.n)}</button><div class="sub">${esc(c.f)} · ${esc(info(c).type||'Type unavailable')}</div></td><td>${esc(c.binder||'Unassigned')}<div class="sub">${esc(c.binderType||'')}</div></td><td>${esc(c.setName||c.set)}<div class="sub">${esc(c.set)}</div></td><td>${c.q}</td><td>${p==null?'—':money(p)}</td><td>${p==null?'—':money(p*c.q)}</td><td>${p==null?'—':money((p-c.cost)*c.q)}</td></tr>`}).join('');
+ $('rows').innerHTML=state.visibleRows.map((c,i)=>{const p=unit(c),change=changeFor(c);return `<tr><td><button class="card-name" data-card="${i}" aria-haspopup="dialog">${esc(c.n)}</button><div class="sub">${esc(c.f)} · ${esc(info(c).type||'Type unavailable')}</div></td><td>${esc(c.binder||'Unassigned')}<div class="sub">${esc(c.binderType||'')}</div></td><td>${esc(c.setName||c.set)}<div class="sub">${esc(c.set)}</div></td><td>${c.q}</td><td>${p==null?'—':money(p)}</td><td>${p==null?'—':money(p*c.q)}</td><td>${p==null?'—':money((p-c.cost)*c.q)}</td><td title="${esc(change?.label||'No usable comparison price')}" class="${change?(change.value>=0?'up':'down'):''}">${change?(change.value>=0?'+':'')+change.value.toFixed(2)+'%':'—'}</td></tr>`}).join('');
  $('shown').textContent=rows.length?`Showing ${first+1}–${Math.min(first+size,rows.length)} of ${rows.length.toLocaleString()} matching entries`:'No matching entries';$('page').textContent=`Page ${state.page+1} of ${pages}`;$('previous').disabled=state.page===0;$('next').disabled=state.page===pages-1;
  document.querySelectorAll('[data-sort]').forEach(b=>{b.textContent=b.dataset.label+(b.dataset.sort===state.sort?(state.direction===1?' ↑':' ↓'):'');b.parentElement.setAttribute('aria-sort',b.dataset.sort===state.sort?(state.direction===1?'ascending':'descending'):'none')});
 }
@@ -40,7 +64,7 @@ function graphData(){
  const points=state.history.flatMap(h=>{
   const time=Date.parse(h.timestamp||h.date+'T12:00:00Z');if(state.range!=='ALL'&&time<Date.now()-Number(state.range)*86400000)return [];
   if(!active)return [{...h,time,plot:$('metric').value==='count'?h.quantity:h.value}];
-  let items=h.items;
+  let items=historyItems(h);
   if(!items&&h.timestamp===state.latest.lastUpdated)items=state.cards.filter(c=>c.proxy!=='true').map(c=>[c.id,c.f,c.q,c.binder,unit(c)]);
   if(!items){unsupported++;return []}
   let value=0,quantity=0,covered=0;
@@ -68,9 +92,9 @@ function inspect(index){
 function refreshViews(){state.page=0;draw();renderTable()}
 async function load(){
  $('reload').disabled=true;try{
-  const urls=['latest','history','metadata'];const responses=await Promise.all(urls.map(n=>fetch(`./data/${n}.json`,{cache:'no-store'})));
-  if(!responses[0].ok||!responses[1].ok)throw Error('Published price files could not be loaded');
-  const latest=await responses[0].json(),history=await responses[1].json(),metadata=responses[2].ok?await responses[2].json():{};
+  const urls=['latest','metadata'];const responses=await Promise.all(urls.map(n=>fetch(`${dataPath}/${n}.json`,{cache:'no-store'})));
+  if(!responses[0].ok)throw Error('Published price files could not be loaded');
+  const latest=await responses[0].json(),history=await loadHistory(),metadata=responses[1].ok?await responses[1].json():{};
   Object.assign(state,{cards:latest.cards,prices:latest.prices,history,metadata,latest});initializeFilters();overview();refreshViews();$('status').textContent='Shared snapshots loaded. Filter below to explore a subset of the collection.';
  }catch(e){$('status').textContent='Could not load dashboard: '+e.message}finally{$('reload').disabled=false}
 }
@@ -79,12 +103,12 @@ for(const id of ['binder','set','color','type','minimum'])$(id).onchange=refresh
 $('metric').onchange=draw;$('search').oninput=()=>{state.page=0;renderTable()};
 function reset(){for(const id of ['binder','set','color','type'])$(id).value='';$('minimum').value='0';$('search').value=''}
 $('reset').onclick=()=>{reset();refreshViews()};
-document.querySelectorAll('[data-sort]').forEach(b=>{b.dataset.label=b.textContent.replace(/ [↑↓]$/,'');b.onclick=()=>{if(state.sort===b.dataset.sort)state.direction*=-1;else{state.sort=b.dataset.sort;state.direction=['q','unit','value','gain'].includes(state.sort)?-1:1}state.page=0;renderTable()}});
+document.querySelectorAll('[data-sort]').forEach(b=>{b.dataset.label=b.textContent.replace(/ [↑↓]$/,'');b.onclick=()=>{if(state.sort===b.dataset.sort)state.direction*=-1;else{state.sort=b.dataset.sort;state.direction=['q','unit','value','gain','change'].includes(state.sort)?-1:1}state.page=0;renderTable()}});
 document.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{state.range=b.dataset.range;document.querySelectorAll('[data-range]').forEach(z=>z.classList.toggle('active',z===b));draw()});
 $('previous').onclick=()=>{state.page--;renderTable()};$('next').onclick=()=>{state.page++;renderTable()};
 $('chart').onpointermove=$('chart').onpointerdown=e=>{if(!state.points.length)return;const rect=$('chart').getBoundingClientRect(),position=(e.clientX-rect.left)/rect.width*800;let closest=0;state.points.forEach((p,i)=>{if(Math.abs(state.geometry.x(p.time)-position)<Math.abs(state.geometry.x(state.points[closest].time)-position))closest=i});inspect(closest)};
 $('chart').onkeydown=e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();inspect(Math.max(0,Math.min(state.points.length-1,state.hover+(e.key==='ArrowLeft'?-1:1))))};
-$('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({history:state.history,...state.latest,metadata:state.metadata})],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='mana-portfolio-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('export').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify({...(state.historyArchives?{historyArchives:state.historyArchives}:{history:state.history}),...state.latest,metadata:state.metadata})],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='mana-portfolio-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 
 let previewTimer,closeTimer,previewAnchor=null;
 function hidePreview(){clearTimeout(previewTimer);clearTimeout(closeTimer);$('card-preview').hidden=true;if(previewAnchor)previewAnchor.setAttribute('aria-expanded','false');previewAnchor=null}

@@ -12,7 +12,7 @@ The workflow runs at **10:17 and 22:17 UTC** daily (6:17 AM/PM New York during d
 
 ## Data
 - Scryfall USD estimates for exact printing and finish; proxies excluded. Missing finish prices stay unpriced, never substituted.
-- Both scheduled observations are retained in `data/history.json`; `data/latest.json` contains the published current collection and prices. The reload button reads these files; it does not request a new market update.
+- Both scheduled observations are retained in `data/history-index.json` and `data/history/YYYY-MM.json`; `data/latest.json` contains the published current collection and prices. The reload button reads these files; it does not request a new market update.
 - Historical import uses MTGJSON's available 90-day archive, TCGplayer retail USD, and **today's collection quantities**. This is reconstructed value, not a record of what you owned on each day. Added dates are import dates and do not prove acquisition dates.
 - Historical TCGplayer retail and current Scryfall prices may differ. Coverage and source are shown on chart hover. Missing dates are not fabricated; differing coverage or changing holdings can move totals independently of prices.
 - These are indicative prices, without condition/language adjustments, fees, or sale guarantees.
@@ -45,3 +45,24 @@ Hover or tap the graph for an in-chart point, crosshair, date, and exact value. 
 
 
 Hover, keyboard-focus, or tap a card name for an image and locally stored rules, mana cost, type, power/toughness, set, binder, and unit price. Multi-face cards show all available faces’ rules. Artwork loads from Scryfall’s image host; rules still work when the image is unavailable. Escape, the close button, or clicking outside dismisses the panel. `python scripts/update_prices.py --metadata-only` refreshes rules metadata without changing prices.
+
+
+## Jacob’s separate collection
+`jacob.html` reads only `data/jacob/`, generated from `Jacob_manabox.csv`. The original `index.html` continues reading the original collection’s files in `data/`. There are no cross-collection links or combined totals. The pages share CSS and JavaScript only. Both pages are publicly accessible on the same GitHub Pages site; separation is not authentication or private access.
+
+The twice-daily workflow updates each collection separately. Commands for Jacob:
+```
+python scripts/update_prices.py --collection jacob
+python scripts/update_prices.py --collection jacob --backfill --start-date 2024-10-19
+```
+The requested two-year history is unavailable from the free MTGJSON archive, which retains approximately 90 days. The initial import contains 87 available historical dates from July 21 through October 18, 2026, and a live October 19 snapshot. Missing earlier prices are not synthesized. History reconstructs current holdings and does not infer past ownership from CSV added dates.
+
+The sortable **Change %** column on both pages compares the latest unit price to the exact printing and finish in that collection’s first saved snapshot. It never switches to a previous-day baseline. Missing, zero, or unavailable first prices show `—`; source changes can affect comparisons. New cards absent from the first snapshot have no percentage baseline. Purchase-basis dollar comparisons remain in their existing separate column.
+
+
+## Long-term retention and storage
+The provider’s rolling archive limits initial backfill, not retention of observations already saved here. Every collected snapshot is retained in monthly files, and the chart can browse a full year and beyond as data accumulates. There is no 90-day pruning.
+
+Monthly files store shared holdings layouts once and each observation’s prices separately. At the initial collection sizes, two daily observations for both pages project to approximately 25 MB of additional published history a year (before compression). Growth depends on holdings, prices, and frequency; Git revision history also consumes repository space. The browser shares layouts in memory and expands card rows only when a filtered graph needs them. Historical backups now include `historyArchives` with compact monthly documents, plus the selected collection’s latest prices and metadata. Old aggregate-only observations remain intact.
+
+The old monolithic history files were losslessly migrated into monthly archives. `load_history()` / `save_history()` in the updater decode and encode this format. The UI can still read a legacy history.json when no monthly index exists, to support migration.

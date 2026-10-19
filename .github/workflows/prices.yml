@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       backfill:
-        description: Import available historical prices since October 6, 2026
+        description: Import available archived history for both separate collections
         type: boolean
         default: false
 permissions:
@@ -25,12 +25,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Validate archive retention
+        run: python -m unittest discover -s tests
       - name: Historical import
         if: inputs.backfill
         run: |
           pip install ijson
           python scripts/update_prices.py --backfill
-      - run: python scripts/update_prices.py
+          python scripts/update_prices.py --collection jacob --backfill
+      - name: Update main collection
+        run: python scripts/update_prices.py
+      - name: Update Jacob collection
+        run: python scripts/update_prices.py --collection jacob
       - name: Commit observations
         run: |
           git config user.name 'github-actions[bot]'
@@ -43,7 +49,7 @@ jobs:
       - name: Prepare public site
         run: |
           mkdir _site
-          cp index.html app.js styles.css _site/
+          cp index.html jacob.html app.js styles.css _site/
           cp -r data _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
