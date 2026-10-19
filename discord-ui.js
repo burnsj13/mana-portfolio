@@ -10,7 +10,7 @@ async function sendDiscordGraph(collection,button,status){
   let result;try{result=await response.json()}catch{throw Error('Discord function is not deployed yet.')}
   if(!response.ok||!result.sent)throw Error(result.error||result.message||'Discord delivery failed.');
   status.textContent='Graph sent to Discord'+(result.checkedAt?' · saved prices checked '+new Date(result.checkedAt).toLocaleString():'')+'.';
- }catch(e){status.textContent=e.message}finally{button.disabled=false}
+ }catch(e){status.textContent=e instanceof TypeError?'Could not reach the Discord function. Check that send-discord-summary is deployed in this Supabase project with JWT verification off.':e.message}finally{button.disabled=false}
 }
 $('send-discord-test').onclick=()=>sendDiscordGraph(profile,$('send-discord-test'),$('discord-send-status'));
 // Public send controls are also available without signing in to collection data.
