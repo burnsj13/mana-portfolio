@@ -10,6 +10,14 @@ let patchAllowed=true;const fetcher=async(url,options)=>{calls.push({url,options
  assert.throws(()=>api.validateCard({...card,q:-1}));
  const client=api.create(config,'main',fetcher,storage);await assert.rejects(client.load(),/Sign in/);assert.equal(calls.length,0);await assert.rejects(client.asset('latest.json'),/Sign in/);
  await client.signIn('joe@mana-portfolio.invalid','PASSWORD');assert(!JSON.stringify([...store.values()]).includes('PASSWORD'));assert.equal((await client.user()).id,'joe');
+ const restored=api.create(config,'main',fetcher,storage);assert.equal((await restored.user()).id,'joe');
+ const sessionKey=[...store.keys()][0];const expired=JSON.parse(store.get(sessionKey));expired.expires_at=0;storage.setItem(sessionKey,JSON.stringify(expired));
+ assert.equal((await api.create(config,'main',fetcher,storage).user()).id,'joe');assert(calls.some(c=>c.url.includes('grant_type=refresh_token')));
+ const offline=api.create(config,'main',async()=>{throw Error('Offline')},storage);await assert.rejects(offline.user(),/Offline/);assert(store.has(sessionKey));
+ const remembered=new Map(),temporary=new Map();const memory=m=>({getItem:k=>m.get(k),setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)});let persist=true;
+ const browserStore=api.browserStorage(memory(remembered),memory(temporary),()=>persist);browserStore.setItem('session','TOKEN');assert.equal(remembered.get('session'),'TOKEN');
+ assert.equal(api.browserStorage(memory(remembered),memory(new Map()),()=>true).getItem('session'),'TOKEN');
+ persist=false;browserStore.setItem('session','TAB_TOKEN');assert.equal(remembered.size,0);assert.equal(temporary.get('session'),'TAB_TOKEN');browserStore.removeItem('session');assert.equal(temporary.size,0);
  const data=await client.load();assert.equal(data.cards.length,501);assert.equal(data.cards[0].n,"Urza's Saga");
  await client.saveCard(card);await client.saveCard({...card,entry_id:id});await client.removeCard(id);await client.saveSettings({version:1,alerts:{},watchlist:[]});
  for(const call of calls.filter(c=>c.url.includes('/rest/')))assert.equal(call.options.headers.Authorization,'Bearer ACCESS');

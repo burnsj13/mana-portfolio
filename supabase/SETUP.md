@@ -39,8 +39,10 @@ reset holdings to CSV. No paid Supabase feature is needed by this implementation
 ## Privacy and retention
 
 Database RLS denies anonymous and unassigned users. Assigned users can read both
-profiles, and can write only their own. Auth tokens persist in sessionStorage for
-the current browser tab and are cleared on sign-out. Passwords are never stored by
+profiles, and can write only their own. With Remember me checked, Auth tokens persist
+in localStorage across reloads and browser restarts. Unchecking it uses sessionStorage
+for the current tab. Sign-out clears both stores; expired sessions refresh automatically.
+Temporary network failures do not erase the session. Passwords are never stored by
 the app. The browser never receives the server key. Supabase Storage uses a private
 `portfolio-history` bucket with the same membership check. All published snapshots
 require authentication. Historical snapshots keep their original holdings; edits

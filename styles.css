@@ -5,3 +5,4 @@
 .movers-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}.move-row{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid #2a3c55;padding:13px 0;font-size:12px}.move-row strong{font-size:13px}.spark{width:85px;height:30px;flex:0 0 85px}.move-row select{max-width:100px}#publish-settings{color:#a9ceff;font-size:12px}#daily-summary{display:inline;width:auto;margin:0 8px 0 0}details{margin:16px 0}#watch-results{max-height:400px;overflow:auto}@media(max-width:760px){.movers-grid{grid-template-columns:1fr}.move-row{flex-wrap:wrap}.spark{width:70px;flex-basis:70px}}
 
 [hidden]{display:none!important}.cloud-login{max-width:420px;margin:8vh auto;padding:28px}.cloud-login form{display:grid;gap:18px}#cloud-owned{width:100%;max-width:100%;margin:12px 0}#cloud-account details{margin-top:16px}
+.remember-login{display:flex;align-items:center;gap:10px}.remember-login input{width:auto;margin:0}
