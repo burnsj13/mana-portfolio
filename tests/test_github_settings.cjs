@@ -24,5 +24,8 @@ const api=context.GitHubSettings;
  assert(dispatch.url.endsWith('/actions/workflows/prices.yml/dispatches'));
  assert.equal(dispatch.body.inputs.discord_collection,'jacob');assert.equal(dispatch.body.inputs.discord_snapshot,true);
  assert.equal(dispatch.body.ref,'main');
+ const discordCalls=[];const actionsOnly=api.create('main',async(url,options)=>{discordCalls.push(url);assert(!url.includes('/contents/'));return {ok:true,status:options.method==='POST'?204:200,json:async()=>({id:1})}});
+ await actionsOnly.connectDiscord('fake-actions-only');await actionsOnly.sendDiscordTest();assert.equal(discordCalls.length,2);assert(discordCalls[0].endsWith('/actions/workflows/prices.yml'));
+ const denied=api.create('main',async()=>({ok:false,status:403}));await assert.rejects(denied.connectDiscord('fake'),e=>/Actions: Read and write/.test(e.message)&&!e.message.includes('Contents:'));await assert.rejects(denied.sendDiscordTest(),/Connect/);
  console.log('PASS GitHub save: Unicode, profile isolation, authenticated file update, conflict detection, disconnect, no token in content');
 })().catch(error=>{console.error(error);process.exitCode=1});
