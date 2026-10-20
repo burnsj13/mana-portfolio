@@ -18,22 +18,36 @@ function renderInsights(){
  $('gainers').innerHTML=moveList(rows.filter(r=>r.dollars>0).sort((a,b)=>b.holdingDollars-a.holdingDollars));$('losers').innerHTML=moveList(rows.filter(r=>r.dollars<0).sort((a,b)=>a.holdingDollars-b.holdingDollars));
  renderAlertPreview();renderWatchlist();
 }
-function readRule(){return {enabled:$('alerts-enabled').value==='true',percent:Number($('alert-percent').value),dollars:Number($('alert-dollars').value),period:$('alert-period').value,direction:$('alert-direction').value,dailySummary:$('daily-summary').checked}}
-function saveDraft(){const rule=readRule();if(!Number.isFinite(rule.percent)||rule.percent<.1||rule.percent>10000||!Number.isFinite(rule.dollars)||rule.dollars<0||rule.dollars>100000){$('settings-status').textContent='Enter a percentage of at least 0.1 and a dollar threshold of 0 or more.';return false}settings.alerts=rule;try{localStorage.setItem(draftKey,JSON.stringify(settings));$('settings-status').textContent='Saving settings…'}catch{$('settings-status').textContent='Browser storage unavailable. Copy or download your settings before leaving.'}renderInsights();if(window.cloudSettingsChanged)window.cloudSettingsChanged();return true}
+function readRule(){return {enabled:$('alerts-enabled').value==='true',percent:Number($('alert-percent').value),dollars:Number($('alert-dollars').value),period:$('alert-period').value,direction:$('alert-direction').value,dailySummary:$('daily-summary').checked,watchPercent:Number($('watch-percent').value),watchDirection:$('watch-direction').value}}
+function saveDraft(){const rule=readRule();if(!Number.isFinite(rule.watchPercent)||rule.watchPercent<.1||rule.watchPercent>10000||!Number.isFinite(rule.percent)||rule.percent<.1||rule.percent>10000||!Number.isFinite(rule.dollars)||rule.dollars<0||rule.dollars>100000){$('settings-status').textContent='Enter a percentage of at least 0.1 and a dollar threshold of 0 or more.';return false}settings.alerts=rule;try{localStorage.setItem(draftKey,JSON.stringify(settings));$('settings-status').textContent='Saving settings…'}catch{$('settings-status').textContent='Browser storage unavailable. Copy or download your settings before leaving.'}renderInsights();if(window.cloudSettingsChanged)window.cloudSettingsChanged();return true}
 function renderAlertPreview(){
  const end=currentEnd(),owned=movement(state.cards,state.prices,state.history,end,settings.alerts.period);
  let candidates=owned.rows.filter(r=>Market.qualifies(r,settings.alerts));
- if(watchState.lastUpdated){const wend={...watchState,timestamp:watchState.lastUpdated,date:watchState.lastUpdated.slice(0,10)};candidates=candidates.concat(movement(watchState.cards,watchState.prices,watchState.history,wend,settings.alerts.period).rows.filter(r=>Market.qualifies(r,settings.alerts)))}
- const unique=[...new Map(candidates.map(r=>[Market.key(r),r])).values()];$('alert-events').innerHTML=unique.length?unique.slice(0,12).map(r=>`<p class="${r.dollars>0?'up':'down'}">${esc(r.n)} · ${signedMoney(r.dollars)} / card · ${signedPercent(r.percent)}</p>`).join(''):'<p class="note">No matching alert conditions in the saved data. New tracking may need an earlier matching-source snapshot.</p>';
+ candidates=candidates.concat(watchMovements().filter(r=>Market.qualifies(r,{...settings.alerts,percent:settings.alerts.watchPercent??settings.alerts.percent,dollars:0,direction:settings.alerts.watchDirection||'both'})));
+ const unique=[...new Map(candidates.map(r=>[(r.scope||'collection')+'|'+Market.key(r),r])).values()];$('alert-events').innerHTML=unique.length?unique.slice(0,12).map(r=>`<p class="${r.dollars>0?'up':'down'}">${esc(r.n)} · ${signedMoney(r.dollars)} / card · ${signedPercent(r.percent)}${r.scope==='wishlist'?' · since added':''}</p>`).join(''):'<p class="note">No matching alert conditions in the saved data. New tracking may need an earlier matching-source snapshot.</p>';
 }
+function watchEntries(){return settings.watchlist.map(c=>{const tracked=watchState.cards.find(w=>Market.key(w)===Market.key(c)&&(!c.addedAt||w.addedAt===c.addedAt));return {...c,baseline:c.baseline||tracked?.baseline,tracked:!!tracked}})}
+function watchMovements(){return Market.watchRows(watchEntries().filter(c=>c.tracked),watchState.prices,watchState)}
 function renderWatchlist(){
- const saved=new Set((publishedSettings?.watchlist||[]).map(Market.key));
- $('watchlist').innerHTML=settings.watchlist.length?settings.watchlist.map((c,i)=>{const raw=watchState.prices[c.id]?.[{foil:'usd_foil',etched:'usd_etched'}[c.f]||'usd'];const trend=watchState.lastUpdated?movement(watchState.cards,watchState.prices,watchState.history,{...watchState,date:watchState.lastUpdated.slice(0,10),timestamp:watchState.lastUpdated},$('trend-period').value).rows.find(r=>Market.key(r)===Market.key(c)):null;return `<div class="move-row"><div><strong>${esc(c.n)}</strong><div class="note">${esc(c.setName||c.set||'Exact printing')} · ${esc(c.f)} · ${saved.has(Market.key(c))?'Saved':'Saving'}</div></div><span>${raw==null?'Awaiting price collection':money(raw)}<div class="note">${trend?signedMoney(trend.dollars)+' · '+signedPercent(trend.percent)+(trend.compatible?'':' · mixed sources'):'Collecting comparison history'}</div></span><button data-remove-watch="${i}" aria-label="Remove ${esc(c.n)} from wishlist">Remove</button></div>`}).join(''):'<p class="note">No wishlist cards yet.</p>';
+ const saved=new Set((publishedSettings?.watchlist||[]).map(Market.key)),moves=new Map(watchMovements().map(c=>[Market.key(c),c]));
+ $('watchlist').innerHTML=watchEntries().map((c,i)=>{const base=c.baseline,trend=moves.get(Market.key(c));return `<div class="move-row"><div><strong>${esc(c.n)}</strong><div class="note">${esc(c.setName||c.set||'Exact printing')} · ${esc(c.f)} · ${saved.has(Market.key(c))?'Saved':'Saving'}</div><div class="note">${base?'Starting price: '+money(base.price)+' · '+esc(new Date(base.timestamp).toLocaleString())+' · '+esc(base.source):'Starting price pending: first available quote will be saved.'}</div></div><span>${trend?money(trend.price):base?money(base.price)+' when added':'Awaiting price collection'}<div class="note">${trend?signedMoney(trend.dollars)+' · '+signedPercent(trend.percent)+' since added'+(trend.compatible?'':' · mixed sources, no alert'):'Awaiting first background comparison'}</div></span><button data-remove-watch="${i}" ${cloudWritable?'':'disabled'} aria-label="Remove ${esc(c.n)} from wishlist">Remove</button></div>`}).join('')||'<p class="note">No wishlist cards yet.</p>';
  document.querySelectorAll('[data-remove-watch]').forEach(b=>b.onclick=()=>{if(!cloudWritable)return;settings.watchlist.splice(Number(b.dataset.removeWatch),1);saveDraft()});
 }
-function addWatch(card){if(!cloudWritable){$('settings-status').textContent='Only this collection’s owner can edit the wishlist.';return}if(settings.watchlist.some(c=>Market.key(c)===Market.key(card))){$('settings-status').textContent='That printing and finish are already in this wishlist.';return}if(settings.watchlist.length>=200){$('settings-status').textContent='This wishlist supports up to 200 printings.';return}settings.watchlist.push(card);saveDraft()}
+const pendingWatchAdds=new Set();
+async function addWatch(card){
+ if(!cloudWritable){$('settings-status').textContent='Only this collection’s owner can edit the wishlist.';return}
+ const key=Market.key(card);
+ if(settings.watchlist.some(c=>Market.key(c)===key)||pendingWatchAdds.has(key)){$('settings-status').textContent='That printing and finish are already added or being added.';return}
+ if(settings.watchlist.length>=200){$('settings-status').textContent='This wishlist supports up to 200 printings.';return}
+ pendingWatchAdds.add(key);$('settings-status').textContent='Fetching the starting price…';
+ try{
+  const entry=await Market.watchEntry(card);
+  if(settings.watchlist.length>=200)throw Error('Wishlist maximum reached.');
+  settings.watchlist.push(entry);saveDraft();
+ }catch(e){$('settings-status').textContent=e.message}finally{pendingWatchAdds.delete(key)}
+}
 $('trend-period').onchange=renderInsights;
-for(const id of ['alerts-enabled','alert-period','alert-direction','alert-percent','alert-dollars','daily-summary'])$(id).onchange=saveDraft;
+for(const id of ['alerts-enabled','alert-period','alert-direction','alert-percent','alert-dollars','daily-summary','watch-percent','watch-direction'])$(id).onchange=saveDraft;
 $('watch-add').onclick=()=>{const id=$('watch-id').value.trim(),n=$('watch-name').value.trim();if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)||!n){$('settings-status').textContent='Enter a card name and valid Scryfall UUID.';return}addWatch({id:id.toLowerCase(),n,f:$('watch-finish').value})};
 $('watch-find').onclick=async()=>{
  const query=$('watch-search').value.trim();if(query.length<3){$('watch-results').textContent='Enter at least three characters.';return}
@@ -43,7 +57,7 @@ $('watch-find').onclick=async()=>{
 $('copy-settings').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(settings,null,2));$('settings-status').textContent='Settings backup copied.'}catch{$('settings-status').textContent='Clipboard unavailable; use Download settings instead.'}};
 $('export-settings').onclick=()=>{if(!saveDraft())return;const url=URL.createObjectURL(new Blob([JSON.stringify(settings,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=profile+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 function initializeSettings(value,restore=true){settings=JSON.parse(JSON.stringify(value));if(restore){try{const draft=JSON.parse(localStorage.getItem(draftKey));if(draft?.version===1&&Array.isArray(draft.watchlist)&&draft.alerts)settings=draft}catch{}}
- for(const [id,key] of [['alerts-enabled','enabled'],['alert-period','period'],['alert-direction','direction'],['alert-percent','percent'],['alert-dollars','dollars']])$(id).value=String(settings.alerts[key]);$('daily-summary').checked=!!settings.alerts.dailySummary;
+ for(const [id,key] of [['alerts-enabled','enabled'],['alert-period','period'],['alert-direction','direction'],['alert-percent','percent'],['alert-dollars','dollars']])$(id).value=String(settings.alerts[key]);$('daily-summary').checked=!!settings.alerts.dailySummary;$('watch-percent').value=String(settings.alerts.watchPercent??settings.alerts.percent);$('watch-direction').value=settings.alerts.watchDirection||'both';
  $('settings-status').textContent=JSON.stringify(settings)!==JSON.stringify(publishedSettings)?'Local draft has unsaved changes.':'Settings loaded from Supabase. Changes save automatically.';renderInsights();
 }
 async function loadExtras(){

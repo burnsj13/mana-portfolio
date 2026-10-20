@@ -23,6 +23,19 @@ var Market=(()=>{
   }
   return {rows:result,base};
  }
+ async function watchEntry(card,fetcher=fetch,clock=()=>new Date().toISOString()){
+  const response=await fetcher('https://api.scryfall.com/cards/'+card.id,{headers:{Accept:'application/json'}});if(!response.ok)throw Error('Could not fetch this printing’s starting price. Please try again.');
+  const data=await response.json(),raw=data.prices?.[{foil:'usd_foil',etched:'usd_etched'}[card.f]||'usd'],{baseline,...entry}=card;
+  entry.addedAt=clock();
+  if(raw!=null&&Number.isFinite(Number(raw))&&Number(raw)>=0)entry.baseline={price:Number(raw),source:'Scryfall USD',timestamp:entry.addedAt};
+  return entry;
+ }
+ function watchRows(cards,prices,end){return cards.flatMap(c=>{
+  const base=c.baseline,raw=prices[c.id]?.[{foil:'usd_foil',etched:'usd_etched'}[c.f]||'usd'];
+  if(!base||!Number.isFinite(base.price)||base.price<0||raw==null)return [];
+  const p=Number(raw),delta=change(p,base.price);if(!Number.isFinite(p))return [];
+  return [{...c,q:1,price:p,...delta,holdingDollars:delta.dollars,compatible:source(base)===source(end),scope:'wishlist'}];
+ })}
  function qualifies(row,rule){return rule.enabled&&row.compatible&&row.percent!=null&&Math.abs(row.percent)>=rule.percent&&Math.abs(row.dollars)>=rule.dollars&&(rule.direction==='both'||(rule.direction==='up'?row.dollars>0:row.dollars<0))&&row.dollars!==0}
  function spark(history,c,end,period='day'){
   const base=baseline(history,end,period);if(!base||c.price==null)return '';
@@ -36,5 +49,5 @@ var Market=(()=>{
   const segments=observations.slice(1).map((p,i)=>{const previous=observations[i],mixed=p.provider!==previous.provider;return `<line x1="${x(previous)}" y1="${y(previous)}" x2="${x(p)}" y2="${y(p)}" stroke="${mixed?'#e8bd72':p.price>=previous.price?'#61e4b4':'#ff8794'}" stroke-width="2"${mixed?' stroke-dasharray="3 2"':''}/>`}).join('');
   return `<svg class="spark" viewBox="0 0 100 30" role="img" aria-label="Price observations for the selected comparison period"><title>${base.date} to ${end.date}: $${first.toFixed(2)} to $${c.price.toFixed(2)}. Dashed amber segments mark a price-source change, not verified market movement.</title>${segments}</svg>`;
  }
- return {source,items,key,priceMap,stamp,day,baseline,change,rows,qualifies,spark};
+ return {source,items,key,priceMap,stamp,day,baseline,change,rows,watchEntry,watchRows,qualifies,spark};
 })();

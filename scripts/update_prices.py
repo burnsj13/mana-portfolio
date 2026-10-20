@@ -1,5 +1,6 @@
 import csv, json, time, argparse, gzip
 from supabase_store import load_profile
+from watchlist import seed_baselines
 from pathlib import Path
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
@@ -114,7 +115,7 @@ def main():
     for entry in settings.get('watchlist',[]):
         uuid.UUID(entry['id'])
         if entry.get('f') not in ('normal','foil','etched'): raise ValueError('Invalid wishlist finish')
-        watch_cards.append(dict(n=entry['n'],id=entry['id'],f=entry['f'],q=1,cost=0,proxy='false',binder='Wishlist',set=entry.get('set',''),setName=entry.get('setName','')))
+        watch_cards.append(dict(n=entry['n'],id=entry['id'],f=entry['f'],q=1,cost=0,proxy='false',binder='Wishlist',set=entry.get('set',''),setName=entry.get('setName',''),**{k:entry[k] for k in ('addedAt','baseline') if k in entry}))
     if len(watch_cards)>200: raise ValueError('Wishlist maximum is 200 printings')
     cards=remote['cards'] if remote is not None else collection(); now=datetime.now(timezone.utc).isoformat(); path=DATA_DIR/'history.json'
     history=load_history(DATA_DIR)
@@ -188,6 +189,7 @@ def main():
     save_history(DATA_DIR,history)
     watch_dir=DATA_DIR/'wishlist'
     watch_history=load_history(watch_dir)
+    seed_baselines(watch_cards,watch_history,prices,source,now)
     if watch_cards:
         observed=valuation(watch_cards,prices,now[:10],source);observed.update(timestamp=now,priceAsOf=price_as_of);watch_history.append(observed)
     save(watch_dir/'latest.json',dict(cards=watch_cards,prices={c['id']:prices.get(c['id'],{}) for c in watch_cards},lastUpdated=now,source=source,priceAsOf=price_as_of))

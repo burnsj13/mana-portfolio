@@ -15,6 +15,16 @@ Comparisons across price providers are shown as mixed-source estimates, includin
 the provider names. Those estimates also apply to the displayed movers; they never
 trigger threshold alerts.
 
+Wishlist threshold events compare against each entry's fixed starting price, not
+the previous day or the collection's selected day/week/month window. The website
+captures a Scryfall quote for the exact printing and finish when added and saves it
+in that entry's Supabase settings. If unpriced, the first available background quote
+becomes the baseline. Existing entries use their earliest saved wishlist quote.
+Baseline prices remain fixed; removing and re-adding an entry resets its start.
+Wishlist percentage/direction controls are independent of the collection minimum
+dollar threshold. Only matching price sources trigger alerts; repeated ongoing
+conditions do not send additional threshold notifications until they rearm.
+
 ## One-time activation
 
 1. Run `migrations/202610190002_discord_button.sql` in Supabase SQL Editor. This

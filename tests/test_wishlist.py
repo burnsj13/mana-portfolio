@@ -33,4 +33,12 @@ class WishlistTests(unittest.TestCase):
             self.assertEqual({i[0] for i in portfolio[0]['items']},{own})
             self.assertEqual(wishlist[0]['value'],2)
             self.assertEqual({i[0] for i in wishlist[0]['items']},{wish})
+            first=json.loads((directory/'wishlist/latest.json').read_text())
+            self.assertEqual(first['cards'][0]['baseline']['price'],2)
+            def later_quote(url,payload=None):
+                return {'data':[dict(id=card,prices={'usd':'3'},type_line='Creature',colors=['U'],name=card) for card in [own,wish]]}
+            with patch.object(updater,'ROOT',root),patch.object(updater,'DATA_DIR',directory),patch.object(updater,'CSV_PATH',csv_path),patch.object(updater,'mapping_for',return_value={}),patch.object(updater,'load_profile',return_value=database),patch.object(updater,'read',side_effect=later_quote),patch.object(updater.time,'sleep'),patch.object(sys,'argv',['update_prices.py','--collection',profile]):updater.main()
+            later=json.loads((directory/'wishlist/latest.json').read_text())
+            self.assertEqual(later['cards'][0]['baseline'],first['cards'][0]['baseline'])
+            self.assertEqual(later['prices'][wish]['usd'],'3')
 if __name__=='__main__':unittest.main()

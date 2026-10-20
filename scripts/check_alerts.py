@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 from zoneinfo import ZoneInfo
 from update_prices import ROOT,load_history,save
 from supabase_store import load_profile
+from watchlist import evaluate_watchlist
 
 def source(h):
     value=h.get('source','')
@@ -75,12 +76,13 @@ def check_summary(latest,history):
     return text
 
 def threshold_description(events,new,rule,limit=1200):
-    text=f"Threshold events ({rule['period']}): {len(events)} matching · {len(new)} new\n"
-    text+=f"Rule: at least {rule['percent']:g}% and ${rule['dollars']:g}/card.\n"
+    text=f"Threshold events: {len(events)} matching · {len(new)} new\n"
+    text+=f"Collection ({rule['period']}): ≥{rule['percent']:g}% and ${rule['dollars']:g}/card. Wishlist: ≥{rule.get('watchPercent',rule['percent']):g}% from its saved starting price.\n"
     fresh={(e['id'],e['f'],e['scope']) for e in new};shown=0
     for e in sorted(events,key=lambda e:abs(e['percent']),reverse=True):
         label='new' if (e['id'],e['f'],e['scope']) in fresh else 'ongoing'
-        line=f"{e['n'][:85]} ({e['f']}, {e['scope']}, {label}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%\n"
+        origin=f" · since added at ${e['baselinePrice']:.2f}" if e.get('scope')=='wishlist' and 'baselinePrice' in e else ''
+        line=f"{e['n'][:85]} ({e['f']}, {e['scope']}, {label}): ${e['dollars']:+.2f}/card · {e['percent']:+.2f}%{origin}\n"
         if len(text)+len(line)+100>limit:break
         text+=line;shown+=1
     if len(events)>shown:text+=f'Plus {len(events)-shown} additional matching events; view the website for details.\n'
@@ -135,10 +137,11 @@ def main():
     if rule['period'] not in ('day','week','month') or rule['direction'] not in ('both','up','down') or not .1<=float(rule['percent'])<=10000 or not 0<=float(rule['dollars'])<=100000:raise ValueError('Invalid alert rules')
     latest=json.loads((directory/'latest.json').read_text());history=load_history(directory);events=evaluate(latest,history,rule,'collection')
     watch_dir=directory/'wishlist'
-    if (watch_dir/'latest.json').exists():events+=evaluate(json.loads((watch_dir/'latest.json').read_text()),load_history(watch_dir),rule,'wishlist')
-    events=list({(e['id'],e['f']):e for e in reversed(events)}.values())
+    if (watch_dir/'latest.json').exists():events+=evaluate_watchlist(json.loads((watch_dir/'latest.json').read_text()),rule)
+    events=list({(e['id'],e['f'],e['scope']):e for e in reversed(events)}.values())
     state_path=directory/'alert-state.json';previous=json.loads(state_path.read_text()) if state_path.exists() else {};fingerprint=hashlib.sha256(json.dumps(rule,sort_keys=True).encode()).hexdigest()[:12]
-    def event_key(e):return '|'.join([fingerprint,e['id'],e['f'],rule['period'],e['baseline'],e['direction']])
+    wish_fingerprint=hashlib.sha256(json.dumps(dict(enabled=rule.get('enabled'),percent=rule.get('watchPercent',rule['percent']),direction=rule.get('watchDirection','both')),sort_keys=True).encode()).hexdigest()[:12]
+    def event_key(e):return '|'.join([wish_fingerprint,'wishlist',e['id'],e['f'],'since_added',e['baseline'],e['direction']]) if e['scope']=='wishlist' else '|'.join([fingerprint,e['id'],e['f'],rule['period'],e['baseline'],e['direction']])
     active={event_key(e) for e in events};new=[e for e in events if event_key(e) not in previous.get('active',[])]
     now=datetime.now(timezone.utc);today=now.astimezone(ZoneInfo('America/New_York')).date().isoformat()
     webhook=os.environ.get('DISCORD_WEBHOOK_'+args.collection.upper(),'')

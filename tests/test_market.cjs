@@ -8,3 +8,13 @@ assert.match(m.spark(h,card,{...end,source:'MTGJSON retail'},'day'),/stroke-dash
 assert.match(m.spark(h,{...card,price:3},end,'day'),/y1="15".*y2="15"/);
 assert.equal(m.spark([],card,end,'day'),'');
 console.log('PASS mini charts match comparison endpoints, distinguish source switches, and preserve unchanged prices');
+const wishes=[{id:'a',n:'Wish',f:'normal',baseline:{price:1,source:'Scryfall USD',timestamp:'2026-10-20T10:00:00Z'}}];
+const fixed=m.watchRows(wishes,{a:{usd:1.1}},end)[0];assert.equal(Math.round(fixed.percent),10);assert(m.qualifies(fixed,{enabled:true,percent:5,dollars:0,direction:'both'}));assert(!m.watchRows(wishes,{a:{usd:1.1}},{source:'MTGJSON retail'})[0].compatible);assert.equal(m.watchRows(wishes,{a:{usd_foil:100}},end).length,0);
+console.log('PASS wishlist fixed starting-price comparisons, source labels and exact finishes');
+(async()=>{
+ const quote=async()=>({ok:true,json:async()=>({prices:{usd:'1.05',usd_foil:'7.00',usd_etched:null}})}),clock=()=> '2026-10-20T10:00:00Z';
+ const added=await m.watchEntry({id:'a',f:'foil'},quote,clock);assert.equal(added.baseline.price,7);assert.equal(added.baseline.timestamp,clock());assert.equal(added.addedAt,clock());
+ assert.equal((await m.watchEntry({id:'a',f:'etched'},quote,clock)).baseline,undefined);
+ await assert.rejects(m.watchEntry({id:'a',f:'normal'},async()=>({ok:false}),clock),/starting price/);
+ console.log('PASS add-time quote capture persists exact finish, timestamp and unpriced fallback');
+})().catch(e=>{console.error(e);process.exitCode=1});
