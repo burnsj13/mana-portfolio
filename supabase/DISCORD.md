@@ -52,10 +52,19 @@ is applied to sending. Viewing/editing collection data still requires sign-in.
 
 The existing GitHub Actions price workflow continues to host/update the app. It
 runs at **7 AM and 7 PM America/New_York**, with summer/winter UTC pairs and a
-timezone selector so only two daily price updates run. Scheduled jobs always send
+timezone selector. A twice-hourly catch-up check reads the saved timestamps for
+both collections: if the most recent 7 AM/7 PM slot has not been completed, it
+starts an update; otherwise it skips provider requests and Discord delivery.
+This avoids duplicate scheduled updates and retries missed cron triggers.
+Scheduled updates always send
 both channels a full summary, even if alerts are disabled or no threshold is met.
 Delivery happens after the update finishes; GitHub may queue scheduled jobs, so
 messages are not guaranteed to arrive exactly at 7:00.
+
+The website's **Reload saved data** button downloads existing prices; it does not
+start a provider price check. New database printings are included in the next
+successful update. To force a check immediately, run **Update prices and deploy**
+manually in Actions and enable the graph-summary input if a Discord post is wanted.
 
 The public button is independent of GitHub Actions and uses its Supabase secrets.
 Scheduled delivery still uses the existing GitHub repository webhook secrets.

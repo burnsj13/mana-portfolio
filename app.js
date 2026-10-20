@@ -102,7 +102,9 @@ async function load(){
   const urls=['latest','metadata'];const responses=await Promise.all(urls.map(n=>window.portfolioFetch(`${dataPath}/${n}.json`,{cache:'no-store'})));
   if(!responses[0].ok)throw Error('Published price files could not be loaded');
   const latest=await responses[0].json(),history=await loadHistory(),metadata=responses[1].ok?await responses[1].json():{};
-  Object.assign(state,{cards:latest.cards,prices:latest.prices,history,metadata,latest});await window.loadCloudHoldings();initializeFilters();overview();refreshViews();$('status').textContent='Shared snapshots loaded. Filter below to explore a subset of the collection.';
+  Object.assign(state,{cards:latest.cards,prices:latest.prices,history,metadata,latest});await window.loadCloudHoldings();initializeFilters();overview();refreshViews();
+  const savedPrintings=new Set(latest.cards.map(Market.key)),pending=new Set(state.cards.filter(c=>c.proxy!=='true'&&!savedPrintings.has(Market.key(c))&&unit(c)==null).map(Market.key));
+  $('status').textContent=(pending.size?`${pending.size} new card printing(s) await the next successful price check. `:'Saved prices loaded. ')+`Last check: ${new Date(latest.lastUpdated).toLocaleString()}. Reload reads saved data; it does not request new provider prices.`;
  }catch(e){$('status').textContent='Could not load dashboard: '+e.message}finally{$('reload').disabled=false}
 }
 $('reload').onclick=load;
