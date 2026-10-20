@@ -22,6 +22,8 @@ let patchAllowed=true;const fetcher=async(url,options)=>{calls.push({url,options
  await client.saveCard(card);await client.saveCard({...card,entry_id:id});await client.removeCard(id);await client.saveSettings({version:1,alerts:{},watchlist:[]});
  for(const call of calls.filter(c=>c.url.includes('/rest/')))assert.equal(call.options.headers.Authorization,'Bearer ACCESS');
  await client.asset('history/2026-10.json');assert(calls.at(-1).url.endsWith('/main/history/2026-10.json'));
+ await client.activity(25);assert(calls.at(-1).url.includes('collection=eq.main&select=*&order=id.desc&limit=25&id=lt.25'));
+ await assert.rejects(client.activity('1&collection=eq.jacob'),/Invalid activity cursor/);
  await assert.rejects(client.asset('../jacob/latest.json'),/Invalid private asset/);
  patchAllowed=false;await assert.rejects(client.saveSettings({}),/not saved/);await assert.rejects(client.removeCard(id),/not removed/);
  patchAllowed=true;const friend=api.create(config,'jacob',fetcher,storage);await friend.saveCard(card);assert(calls.at(-1).options.body.includes('"collection":"jacob"'));

@@ -1,0 +1,11 @@
+{
+  "version": "2026.10.20.1",
+  "date": "2026-10-20",
+  "notes": [
+    "Update-health indicator shows saved-price freshness and Discord delivery status.",
+    "Weekly price breakdown includes matched gains/losses, top movers and binder totals.",
+    "Collection activity records additions, edits and removals after database setup.",
+    "Individual card charts show exact printing/finish price history and source changes.",
+    "Weekly Discord recaps and versioned patch notes are announced automatically."
+  ]
+}

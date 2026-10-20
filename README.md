@@ -1,5 +1,7 @@
 # Supabase accounts and private collection data
 
+New dashboard features: update health, weekly price breakdown, collection activity and individual card history. See [update setup and Discord patch notes](supabase/UPDATES.md); activity logging requires the new SQL migration.
+
 Discord graph buttons now use a public Supabase function, with no GitHub token or sign-in required to send. See [Discord setup](supabase/DISCORD.md). Scheduled price checks send complete graph/change summaries at 7 AM and 7 PM America/New_York even when no alert threshold is met.
 
 The app now requires Joe/Jacob sign-in, stores editable holdings and settings in Supabase, and saves future price archives in private Storage. **Complete [supabase/SETUP.md](supabase/SETUP.md) before deploying.** The sections below describe earlier CSV/GitHub storage behavior and historical data sources; Supabase setup takes precedence for current editing, privacy and archive retention. Previously public files remain in this repository/history.

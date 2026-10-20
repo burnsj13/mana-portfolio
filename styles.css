@@ -6,3 +6,5 @@
 
 [hidden]{display:none!important}.cloud-login{max-width:420px;margin:8vh auto;padding:28px}.cloud-login form{display:grid;gap:18px}#cloud-owned{width:100%;max-width:100%;margin:12px 0}#cloud-account details{margin-top:16px}
 .remember-login{display:flex;align-items:center;gap:10px}.remember-login input{width:auto;margin:0}
+
+.health-badge{display:inline-block;padding:7px 11px;border-radius:20px;background:#314665;font-size:13px}.health-badge.good{color:#61e4b4}.health-badge.bad{color:#ff8794}.health-badge.waiting{color:#e8bd72}.activity-entry{padding:12px 0;border-bottom:1px solid #2a3c55}#card-history-dialog{width:min(850px,94vw);max-height:90dvh;overflow:auto;background:#131f32;color:#f0f5ff;border:1px solid #5379e8;border-radius:16px;padding:22px}#card-history-dialog::backdrop{background:#000b}#card-history-chart{display:block;width:100%;margin-top:16px;touch-action:pan-y}#card-history-tip{min-height:24px;color:#a9ceff}footer details{margin-top:15px}a{color:#a9ceff}
